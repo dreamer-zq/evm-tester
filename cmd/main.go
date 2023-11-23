@@ -4,9 +4,7 @@ import (
 	"log"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 
@@ -25,26 +23,16 @@ func main() {
 		log.Fatalf("Failed to instantiate Storage contract: %v", err)
 	}
 
-	key, err := crypto.GenerateKey()
+	tg := TxGenerator{
+		contract: ticker,
+		chainID:  chainID,
+	}
+
+	sender, err := crypto.GenerateKey()
 	if err != nil {
 		log.Fatalf("Failed to generate key: %v", err)
 	}
 
-	// Create an authorized transactor and call the store function
-	auth, err := bind.NewKeyedTransactorWithChainID(key, chainID)
-	if err != nil {
-		log.Fatalf("Failed to create authorized transactor: %v", err)
-	}
-	auth.NoSend = true
-	auth.Nonce = big.NewInt(0)
-
-	rawTransaction, err := ticker.Redeem(auth, contractAddr, "tokenURI string")
-	if err != nil {
-		log.Fatalf("Failed to call Redeem: %v", err)
-	}
-	txbz, err := rawTransaction.MarshalBinary()
-	if err != nil {
-		log.Fatalf("Failed to call Redeem: %v", err)
-	}
-	log.Println(hexutil.Bytes(txbz).String())
+	rawTx := tg.GenTx(sender, big.NewInt(0), contractAddr)
+	log.Println(rawTx)
 }

@@ -2,7 +2,11 @@ module github.com/dreamer-zq/turbo-tester
 
 go 1.21.4
 
-require github.com/ethereum/go-ethereum v1.13.5
+require (
+	github.com/ethereum/go-ethereum v1.13.5
+	github.com/panjf2000/ants/v2 v2.9.0
+	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
+)
 
 require (
 	github.com/Microsoft/go-winio v0.6.1 // indirect
@@ -27,7 +31,6 @@ require (
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	golang.org/x/crypto v0.14.0 // indirect
-	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
 	golang.org/x/mod v0.12.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
 	golang.org/x/sys v0.13.0 // indirect
