@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -29,6 +28,7 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.PersistentFlags().String(flagURL, "", "turbo endpoint url")
 	rootCmd.PersistentFlags().Int64(flagChainID, 0, "turbo chain-id")
 	rootCmd.MarkFlagRequired(flagURL)
+	rootCmd.MarkFlagRequired(flagChainID)
 	return rootCmd
 }
 
@@ -55,15 +55,8 @@ func loadGlobalFlags(cmd *cobra.Command) (*GlobalConnfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	chainID := big.NewInt(chainIDInt)
-	if chainIDInt == 0{
-		chainID, err = client.ChainID(context.Background())
-		if err != nil {
-			return nil, err
-		}
-	}
 	return &GlobalConnfig{
-		chainID: chainID,
+		chainID: big.NewInt(chainIDInt),
 		url:     url,
 		client:  client,
 	}, nil

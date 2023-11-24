@@ -1,14 +1,17 @@
 package tester
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"log"
 	"math/big"
+	"net/http"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/pkg/errors"
 )
 
@@ -26,6 +29,9 @@ type TxGenerator struct {
 	chainID        *big.Int
 	createOrSendTx CreateOrSendTx
 	pool           *Pool
+	gasFeeCap      *big.Int // Gas fee cap to use for the 1559 transaction execution (nil = gas price oracle)
+	gasTipCap      *big.Int // Gas priority fee cap to use for the 1559 transaction execution (nil = gas price oracle)
+	gasLimit       uint64   // Gas limit to set for the transaction execution (0 = estimate)
 }
 
 // NewTxGenerator initializes a new instance of the TxGenerator struct.
@@ -36,13 +42,21 @@ type TxGenerator struct {
 // The pool is a pointer to the Pool struct, representing a transaction pool.
 //
 // It returns a pointer to the TxGenerator struct.
-func NewTxGenerator(chainID *big.Int,
+func NewTxGenerator(
+	chainID *big.Int,
+	gasFeeCap *big.Int,
+	gasTipCap *big.Int,
+	gasLimit uint64,
 	createOrSendTx CreateOrSendTx,
-	pool *Pool) *TxGenerator {
+	pool *Pool,
+) *TxGenerator {
 	return &TxGenerator{
 		chainID:        chainID,
 		createOrSendTx: createOrSendTx,
 		pool:           pool,
+		gasFeeCap:      gasFeeCap,
+		gasTipCap:      gasTipCap,
+		gasLimit:       gasLimit,
 	}
 }
 
@@ -63,6 +77,13 @@ func (tg *TxGenerator) GenTx(sender *ecdsa.PrivateKey, senderNonce *big.Int, par
 	}
 	auth.NoSend = true
 	auth.Nonce = senderNonce
+	auth.GasLimit = tg.gasLimit
+	auth.GasTipCap = tg.gasTipCap
+	auth.GasFeeCap = tg.gasFeeCap
+
+	header := make(http.Header)
+	header.Add("X-Chain", tg.chainID.String())
+	auth.Context = rpc.NewContextWithHeaders(context.Background(), header)
 
 	rawTransaction, err := tg.createOrSendTx(auth, params...)
 	if err != nil {

@@ -16,6 +16,9 @@ var (
 	flagContract   = "contract"
 	flagMaxThreads = "max-threads"
 	flagOutput     = "output"
+	flagGasFeeCap  = "gas-fee-cap"
+	flagGasTipCap  = "gas-tip-cap"
+	flagGasLimit   = "gas-limit"
 )
 
 // GentxCmd returns a cobra Command for the "gentx" command.
@@ -27,11 +30,11 @@ func GentxCmd() *cobra.Command {
 		Use:   "gentx",
 		Short: "Generate test data and output to cvs file",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			conf,err := loadGlobalFlags(cmd)
+			conf, err := loadGlobalFlags(cmd)
 			if err != nil {
 				return err
 			}
-			
+
 			contractAddrStr, err := cmd.Flags().GetString(flagContract)
 			if err != nil {
 				return err
@@ -58,8 +61,26 @@ func GentxCmd() *cobra.Command {
 				return err
 			}
 
+			gasLimt, err := cmd.Flags().GetUint64(flagGasLimit)
+			if err != nil {
+				return err
+			}
+
+			gasFeeCap, err := cmd.Flags().GetInt64(flagGasFeeCap)
+			if err != nil {
+				return err
+			}
+
+			gasTipCap, err := cmd.Flags().GetInt64(flagGasTipCap)
+			if err != nil {
+				return err
+			}
+
 			tg := tester.NewTxGenerator(
 				conf.chainID,
+				big.NewInt(gasFeeCap),
+				big.NewInt(gasTipCap),
+				gasLimt,
 				genTx(conf.client, contractAddr),
 				tester.NewPool(maxThreads),
 			)
@@ -84,12 +105,16 @@ func GentxCmd() *cobra.Command {
 			return tester.SaveToCSV(path, data)
 		},
 	}
+
 	cmd.Flags().Int32(flagCount, 10, "the amount of data generated")
 	cmd.Flags().Bool(flagConcurrent, true, "whether to use concurrent mode,the number of concurrencies is the same as `data-count`")
 	cmd.Flags().String(flagContract, "", "the contract address being tested")
 	cmd.Flags().Int(flagMaxThreads, 100, "maximum number of threads")
 	cmd.Flags().String(flagOutput, "", "csv file output path")
-	
+	cmd.Flags().Int64(flagGasFeeCap, 150000, "gas fee cap to use for the 1559 transaction execution (nil = gas price oracle)")
+	cmd.Flags().Int64(flagGasTipCap, 100000, "gas priority fee cap to use for the 1559 transaction execution (nil = gas price oracle)")
+	cmd.Flags().Int64(flagGasLimit, 2000000, "gas limit to set for the transaction execution (0 = estimate)")
+
 	cmd.MarkFlagRequired(flagContract)
 	cmd.MarkFlagRequired(flagOutput)
 	return cmd
