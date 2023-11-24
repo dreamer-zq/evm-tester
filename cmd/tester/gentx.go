@@ -1,13 +1,10 @@
 package cmd
 
 import (
-	"context"
-	"errors"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/spf13/cobra"
 
 	tester "github.com/dreamer-zq/turbo-tester"
@@ -16,6 +13,9 @@ import (
 var (
 	flagCount      = "count"
 	flagConcurrent = "concurrent"
+	flagContract   = "contract"
+	flagMaxThreads = "max-threads"
+	flagOutput     = "output"
 )
 
 // GentxCmd returns a cobra Command for the "gentx" command.
@@ -27,15 +27,11 @@ func GentxCmd() *cobra.Command {
 		Use:   "gentx",
 		Short: "Generate test data and output to cvs file",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			url, err := cmd.Flags().GetString(flagURL)
+			conf,err := loadGlobalFlags(cmd)
 			if err != nil {
 				return err
 			}
-			conn, err := ethclient.Dial(url)
-			if err != nil {
-				return errors.New("failed to connect to the Ethereum client")
-			}
-
+			
 			contractAddrStr, err := cmd.Flags().GetString(flagContract)
 			if err != nil {
 				return err
@@ -57,19 +53,14 @@ func GentxCmd() *cobra.Command {
 			}
 
 			contractAddr := common.HexToAddress(contractAddrStr)
-			chainID, err := conn.ChainID(context.Background())
-			if err != nil {
-				return err
-			}
-
 			maxThreads, err := cmd.Flags().GetInt(flagMaxThreads)
 			if err != nil {
 				return err
 			}
 
 			tg := tester.NewTxGenerator(
-				chainID,
-				genTx(conn, contractAddr),
+				conf.chainID,
+				genTx(conf.client, contractAddr),
 				tester.NewPool(maxThreads),
 			)
 
@@ -93,7 +84,13 @@ func GentxCmd() *cobra.Command {
 			return tester.SaveToCSV(path, data)
 		},
 	}
-	cmd.Flags().Int32("count", 10, "the amount of data generated")
-	cmd.Flags().Bool("concurrent", true, "whether to use concurrent mode,the number of concurrencies is the same as `data-count`")
+	cmd.Flags().Int32(flagCount, 10, "the amount of data generated")
+	cmd.Flags().Bool(flagConcurrent, true, "whether to use concurrent mode,the number of concurrencies is the same as `data-count`")
+	cmd.Flags().String(flagContract, "", "the contract address being tested")
+	cmd.Flags().Int(flagMaxThreads, 100, "maximum number of threads")
+	cmd.Flags().String(flagOutput, "", "csv file output path")
+	
+	cmd.MarkFlagRequired(flagContract)
+	cmd.MarkFlagRequired(flagOutput)
 	return cmd
 }

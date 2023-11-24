@@ -1,25 +1,32 @@
 # turbo-tester
 
-1. Compile the contract
+1. Install `solcjs`
 
 ```bash
-npx hardhat compile
+npm install -g solc@0.8.19
 ```
 
-2. Generator code
+2. Compile the contract
 
 ```bash
-abigen  --abi ./abi/contracts/TicketGame.sol/TicketGame.json --pkg main --type TicketGame --out TicketGame.go
+rm -rf ./compiled
+solcjs --bin --abi ./contracts/TicketGame.sol --base-path ./ --include-path ./node_modules/ --output-dir ./compiled/
 ```
 
-3. Build
+3. Generator code
+
+```bash
+abigen  --abi ./compiled/contracts_TicketGame_sol_TicketGame.abi --bin ./compiled/contracts_TicketGame_sol_TicketGame.bin --pkg gen --type TicketGame --out ./gen/TicketGame.go
+```
+
+4. Build
 
 ```bash
 make build
 ```
 
-4. Generate
+5. Generate
 
 ```bash
-./build/tester gentx --contract=0x547bD9C389686441d9a56Db1DaffF505bC216073 --output ~/Downloads --url http://localhost:8545
+./build/tester gentx --contract=<contract-addr> --output ~/Downloads --url http://localhost:8545
 ```
