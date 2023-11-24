@@ -25,3 +25,6 @@ cache
 # Go workspace file
 go.work
 node_modules
+
+# build
+build
