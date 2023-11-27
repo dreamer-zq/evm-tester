@@ -78,11 +78,11 @@ func GentxCmd() *cobra.Command {
 
 			tg := tester.NewTxGenerator(
 				conf.chainID,
-				big.NewInt(gasFeeCap),
-				big.NewInt(gasTipCap),
-				gasLimt,
 				genTx(conf.client, contractAddr),
 				tester.NewPool(maxThreads),
+				tester.SetGasFeeCap(big.NewInt(gasFeeCap)),
+				tester.SetGasTipCap(big.NewInt(gasTipCap)),
+				tester.SetGasLimit(gasLimt),
 			)
 
 			var data []*tester.Payload
@@ -111,9 +111,9 @@ func GentxCmd() *cobra.Command {
 	cmd.Flags().String(flagContract, "", "the contract address being tested")
 	cmd.Flags().Int(flagMaxThreads, 100, "maximum number of threads")
 	cmd.Flags().String(flagOutput, "", "csv file output path")
-	cmd.Flags().Int64(flagGasFeeCap, 150000, "gas fee cap to use for the 1559 transaction execution (nil = gas price oracle)")
-	cmd.Flags().Int64(flagGasTipCap, 100000, "gas priority fee cap to use for the 1559 transaction execution (nil = gas price oracle)")
-	cmd.Flags().Int64(flagGasLimit, 2000000, "gas limit to set for the transaction execution (0 = estimate)")
+	cmd.Flags().Int64(flagGasFeeCap, 0, "gas fee cap to use for the 1559 transaction execution (nil = gas price oracle,fetch from chain)")
+	cmd.Flags().Int64(flagGasTipCap, 0, "gas priority fee cap to use for the 1559 transaction execution (nil = gas price oracle,fetch from chain)")
+	cmd.Flags().Uint64(flagGasLimit, 0, "gas limit to set for the transaction execution (0 = estimate,fetch from chain)")
 
 	cmd.MarkFlagRequired(flagContract)
 	cmd.MarkFlagRequired(flagOutput)

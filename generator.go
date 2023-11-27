@@ -21,6 +21,41 @@ type Payload struct {
 	ChainID string `csv:"chain_id"`
 }
 
+// Option is a function type that can be used to configure the TxGenerator.
+type Option func(*TxGenerator) *TxGenerator
+
+// SetGasFeeCap sets the gas fee cap for the TxGenerator.
+//
+// Parameters:
+// - gasFeeCap: A pointer to a big.Int representing the gas fee cap.
+//
+// Returns:
+// - An Option function that sets the gas fee cap for the TxGenerator.
+func SetGasFeeCap(gasFeeCap *big.Int) Option {
+	return func(tg *TxGenerator) *TxGenerator {
+		tg.gasFeeCap = gasFeeCap
+		return tg
+	}
+}
+
+// SetGasTipCap sets the gas tip cap option for the TxGenerator.
+//
+// gasTipCap: A pointer to a big.Int representing the gas tip cap.
+// Returns: An Option function that sets the gas tip cap for the TxGenerator.
+func SetGasTipCap(gasTipCap *big.Int) Option {
+	return func(tg *TxGenerator) *TxGenerator {
+		tg.gasTipCap = gasTipCap
+		return tg
+	}
+}
+
+// SetGasLimit sets the gas limit option for the TxGenerator.
+func SetGasLimit(gasLimit uint64) Option {
+	return func(tg *TxGenerator) *TxGenerator {
+		tg.gasLimit = gasLimit
+		return tg
+	}
+}
 // CreateOrSendTx is a function type that can create or send transactions.
 type CreateOrSendTx func(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error)
 
@@ -44,20 +79,19 @@ type TxGenerator struct {
 // It returns a pointer to the TxGenerator struct.
 func NewTxGenerator(
 	chainID *big.Int,
-	gasFeeCap *big.Int,
-	gasTipCap *big.Int,
-	gasLimit uint64,
 	createOrSendTx CreateOrSendTx,
 	pool *Pool,
+	options ...Option,
 ) *TxGenerator {
-	return &TxGenerator{
+	tg := &TxGenerator{
 		chainID:        chainID,
 		createOrSendTx: createOrSendTx,
 		pool:           pool,
-		gasFeeCap:      gasFeeCap,
-		gasTipCap:      gasTipCap,
-		gasLimit:       gasLimit,
 	}
+	for _, option := range options {
+		tg = option(tg)
+	}
+	return tg 
 }
 
 // GenTx generates a transaction using the provided sender's private key, sender nonce, and player address.
