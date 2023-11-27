@@ -19,6 +19,8 @@ var (
 	flagGasFeeCap  = "gas-fee-cap"
 	flagGasTipCap  = "gas-tip-cap"
 	flagGasLimit   = "gas-limit"
+	flagPrivateKey = "private-key"
+	flagNonce      = "nonce"
 )
 
 // GentxCmd returns a cobra Command for the "gentx" command.
@@ -61,37 +63,60 @@ func GentxCmd() *cobra.Command {
 				return err
 			}
 
-			gasLimt, err := cmd.Flags().GetUint64(flagGasLimit)
+			var opts []tester.Option
+			gasLimit, err := cmd.Flags().GetUint64(flagGasLimit)
 			if err != nil {
 				return err
 			}
+			opts = append(opts, tester.SetGasLimit(gasLimit))
 
 			gasFeeCap, err := cmd.Flags().GetInt64(flagGasFeeCap)
 			if err != nil {
 				return err
 			}
+			opts = append(opts, tester.SetGasFeeCap(big.NewInt(gasFeeCap)))
 
 			gasTipCap, err := cmd.Flags().GetInt64(flagGasTipCap)
 			if err != nil {
 				return err
 			}
+			opts = append(opts, tester.SetGasTipCap(big.NewInt(gasTipCap)))
 
 			tg := tester.NewTxGenerator(
 				conf.chainID,
 				genTx(conf.client, contractAddr),
 				tester.NewPool(maxThreads),
-				tester.SetGasFeeCap(big.NewInt(gasFeeCap)),
-				tester.SetGasTipCap(big.NewInt(gasTipCap)),
-				tester.SetGasLimit(gasLimt),
+				opts...,
 			)
 
+			privKey, err := cmd.Flags().GetString(flagPrivateKey)
+			if err != nil {
+				return err
+			}
+
 			var data []*tester.Payload
-			if concurrent {
+			switch {
+			case concurrent:
 				data, err = tg.RandomBatchGenTxs(count, contractAddr)
 				if err != nil {
 					return err
 				}
-			} else {
+				break
+			case privKey != "":
+				sender, err := crypto.HexToECDSA(privKey)
+				if err != nil {
+					return err
+				}
+				nonce, err := cmd.Flags().GetInt64(flagNonce)
+				if err != nil {
+					return err
+				}
+				data, err = tg.BatchGenTxs(sender, big.NewInt(nonce), count, contractAddr)
+				if err != nil {
+					return err
+				}
+				break
+			default:
 				sender, err := crypto.GenerateKey()
 				if err != nil {
 					return err
@@ -111,6 +136,8 @@ func GentxCmd() *cobra.Command {
 	cmd.Flags().String(flagContract, "", "the contract address being tested")
 	cmd.Flags().Int(flagMaxThreads, 100, "maximum number of threads")
 	cmd.Flags().String(flagOutput, "", "csv file output path")
+	cmd.Flags().String(flagPrivateKey, "", "send the account private key for the transaction")
+	cmd.Flags().Int64(flagNonce, 0, "user's nonce")
 	cmd.Flags().Int64(flagGasFeeCap, 0, "gas fee cap to use for the 1559 transaction execution (nil = gas price oracle,fetch from chain)")
 	cmd.Flags().Int64(flagGasTipCap, 0, "gas priority fee cap to use for the 1559 transaction execution (nil = gas price oracle,fetch from chain)")
 	cmd.Flags().Uint64(flagGasLimit, 0, "gas limit to set for the transaction execution (0 = estimate,fetch from chain)")
