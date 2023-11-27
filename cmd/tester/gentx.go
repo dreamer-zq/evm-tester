@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	tester "github.com/dreamer-zq/turbo-tester"
+	"github.com/dreamer-zq/turbo-tester/simple"
 )
 
 var (
@@ -84,7 +85,7 @@ func GentxCmd() *cobra.Command {
 
 			tg := tester.NewTxGenerator(
 				conf.chainID,
-				genTx(conf.client, contractAddr),
+				simple.GenTx(conf.client, contractAddr),
 				tester.NewPool(maxThreads),
 				opts...,
 			)

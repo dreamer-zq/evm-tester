@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/spf13/cobra"
 
-	"github.com/dreamer-zq/turbo-tester/gen"
+	"github.com/dreamer-zq/turbo-tester/simple/gen"
 )
 
 // DeployCmd returns a new instance of the `cobra.Command` struct for the `deploy` command.

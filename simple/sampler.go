@@ -1,11 +1,11 @@
-package cmd
+package simple
 
 import (
 	"fmt"
 	"log"
 	"math/big"
 
-	"github.com/dreamer-zq/turbo-tester/gen"
+	"github.com/dreamer-zq/turbo-tester/simple/gen"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -14,7 +14,13 @@ import (
 	tester "github.com/dreamer-zq/turbo-tester"
 )
 
-func genTx(conn *ethclient.Client, contractAddr common.Address) tester.CreateOrSendTx {
+// GenTx generates a transaction function to redeem a ticket for a player.
+//
+// conn is an Ethereum client connection.
+// contractAddr is the address of the ticket game contract.
+// Returns a function that takes transaction options and a player address,
+// and returns a transaction and an error.
+func GenTx(conn *ethclient.Client, contractAddr common.Address) tester.CreateOrSendTx {
 	ticker, err := gen.NewTicketGame(contractAddr, conn)
 	if err != nil {
 		log.Fatalf("Failed to instantiate Storage contract: %v", err)
