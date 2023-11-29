@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -179,13 +180,16 @@ func (tg *TxGenerator) RandomGenTx(params ...interface{}) (*Payload, error) {
 // The function returns a slice of strings, which represents the generated transactions.
 func (tg *TxGenerator) RandomBatchGenTxs(batchSize int32, params ...interface{}) ([]*Payload, error) {
 	txs := make([]*Payload, 0, batchSize)
+	mu := sync.Mutex{}
 	for i := 0; i < int(batchSize); i++ {
 		tg.pool.Submit(func() {
 			tx, err := tg.RandomGenTx(params...)
 			if err != nil {
 				log.Fatalf("Failed to generate transaction: %v", err)
 			}
+			mu.Lock()
 			txs = append(txs, tx)
+			mu.Unlock()
 		})
 	}
 	tg.pool.Close()
