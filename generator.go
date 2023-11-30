@@ -59,15 +59,12 @@ func SetGasLimit(gasLimit uint64) Option {
 	}
 }
 
-// SetCount sets the count of the TxGenerator.
+// SetBatchSize sets the batch size for the TxGenerator.
 //
-// Parameters:
-// - count: the count to set.
-// Return:
-// - Option: the modified TxGenerator.
-func SetCount(count uint64) Option {
+// It takes a batchSize parameter of type uint64 and returns an Option.
+func SetBatchSize(batchSize uint64) Option {
 	return func(tg *TxGenerator) *TxGenerator {
-		tg.count = count
+		tg.batchSize = batchSize
 		return tg
 	}
 }
@@ -122,7 +119,7 @@ type TxGenerator struct {
 	gasFeeCap      *big.Int // Gas fee cap to use for the 1559 transaction execution (nil = gas price oracle)
 	gasTipCap      *big.Int // Gas priority fee cap to use for the 1559 transaction execution (nil = gas price oracle)
 	gasLimit       uint64   // Gas limit to set for the transaction execution (0 = estimate)
-	count          uint64
+	batchSize          uint64
 	privKey        string
 	nonce          int64
 	concurrent     bool
@@ -256,8 +253,8 @@ func (tg *TxGenerator) genTx(sender *ecdsa.PrivateKey, senderNonce *big.Int, par
 // Return:
 // - []string: The generated transactions as a slice of strings.
 func (tg *TxGenerator) BatchGenTxs(sender *ecdsa.PrivateKey, senderNonce *big.Int, params ...interface{}) ([]*Payload, error) {
-	txs := make([]*Payload, 0, tg.count)
-	for i := uint64(0); i < tg.count; i++ {
+	txs := make([]*Payload, 0, tg.batchSize)
+	for i := uint64(0); i < tg.batchSize; i++ {
 		tx, err := tg.GenTx(sender, senderNonce, params...)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to generate transaction")
@@ -289,9 +286,9 @@ func (tg *TxGenerator) RandomGenTx(params ...interface{}) (*Payload, error) {
 //
 // The function returns a slice of strings, which represents the generated transactions.
 func (tg *TxGenerator) RandomBatchGenTxs(params ...interface{}) ([]*Payload, error) {
-	txs := make([]*Payload, 0, tg.count)
+	txs := make([]*Payload, 0, tg.batchSize)
 	mu := sync.Mutex{}
-	for i := uint64(0); i < tg.count; i++ {
+	for i := uint64(0); i < tg.batchSize; i++ {
 		tg.pool.Submit(func() {
 			tx, err := tg.RandomGenTx(params...)
 			if err != nil {

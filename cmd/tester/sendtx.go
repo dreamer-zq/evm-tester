@@ -10,10 +10,10 @@ import (
 )
 
 var (
-	flagTotalTxs  = "run-total-txs"
-	flagSync      = "run-sync"
-	flagRunPeriod = "run-period"
-	flagUserNum   = "run-user-num"
+	flagTotalBatch = "run-total-batch"
+	flagSync       = "run-sync"
+	flagRunPeriod  = "run-period"
+	flagUserNum    = "run-user-num"
 )
 
 // StartCmd generates a cobra command for sending transaction.
@@ -48,7 +48,7 @@ func StartCmd() *cobra.Command {
 				return err
 			}
 
-			totalTxs, err := cmd.Flags().GetInt64(flagTotalTxs)
+			totalBatch, err := cmd.Flags().GetInt64(flagTotalBatch)
 			if err != nil {
 				return err
 			}
@@ -77,7 +77,7 @@ func StartCmd() *cobra.Command {
 				conf.client,
 				userNum,
 				tg,
-				tester.SetTotalTxs(totalTxs),
+				tester.SetTotalBatch(totalBatch),
 				tester.SetSync(sync),
 				tester.SetEndTime(endTime),
 			)
@@ -89,6 +89,6 @@ func StartCmd() *cobra.Command {
 	cmd.Flags().Int(flagUserNum, 0, "maximum number of concurrent users")
 	cmd.Flags().Duration(flagRunPeriod, 0, "stress test execution time,eg: 5m")
 	cmd.Flags().Bool(flagSync, false, "whether transaction execution is in synchronous mode")
-	cmd.Flags().Int64(flagTotalTxs, 0, "the total number of transactions executed, and `--run-period`, choose one of the two")
+	cmd.Flags().Int64(flagTotalBatch, 0, "total production batches, and `--run-period`, choose one of the two,`totalTxs = totalBatch * count`")
 	return cmd
 }

@@ -64,13 +64,14 @@ func SetSync(sync bool) TransactorOpts {
 	}
 }
 
-// SetTotalTxs returns a TransactorOpts function that sets the totalTxs field of the Transactor struct.
+
+// SetTotalBatch sets the total batch value for the TransactorOpts.
 //
-// totalTxs: The total number of transactions to be set.
-// Returns: A TransactorOpts function that sets the totalTxs field and returns the Transactor struct.
-func SetTotalTxs(totalTxs int64) TransactorOpts {
+// totalBatch: The total batch value to be set.
+// Returns: The modified TransactorOpts.
+func SetTotalBatch(totalBatch int64) TransactorOpts {
 	return func(t *Transactor) *Transactor {
-		t.totalTxs = totalTxs
+		t.totalBatch = totalBatch
 		return t
 	}
 }
@@ -81,8 +82,8 @@ type Transactor struct {
 	pool           *Pool
 	sync           bool
 	rs             *Result
-	totalTxs       int64
-	produceTxs     atomic.Int64
+	totalBatch     int64
+	batchNo        atomic.Int64
 	endTime        time.Time
 	gen            *TxGenerator
 	payloads       chan []*Payload
@@ -150,7 +151,7 @@ func (t *Transactor) produceTx(contractMethodParams ...interface{}) {
 			continue
 		}
 		slog.Info("produce transactions", "count", len(payloads))
-		t.produceTxs.Add(int64(len(payloads)))
+		t.batchNo.Add(1)
 		t.payloads <- payloads
 	}
 }
@@ -175,17 +176,17 @@ func (t *Transactor) listenExit() {
 }
 
 func (t *Transactor) canFinish() bool {
-	currentTxs := t.produceTxs.Load()
+	batchNo := t.batchNo.Load()
 	now := time.Now()
 
 	slog.Info("can finish transactor ?",
-		"totalTxs", t.totalTxs,
-		"current", currentTxs,
+		"totalBatch", t.totalBatch,
+		"current", batchNo,
 		"now", now,
 		"endTime", t.endTime,
 	)
 	// totalTxs is a counter that keeps track of the total number of transactions sent
-	if t.totalTxs > 0 && t.totalTxs <= currentTxs {
+	if t.totalBatch > 0 && t.totalBatch <= batchNo {
 		return true
 	}
 

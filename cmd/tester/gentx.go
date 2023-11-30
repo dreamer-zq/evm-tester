@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	flagCount      = "count"
+	flagBatchSize  = "batch-size"
 	flagConcurrent = "concurrent"
 	flagContract   = "contract"
 	flagMaxThreads = "max-threads"
@@ -71,7 +71,7 @@ func getGenerator(conf *GlobalConnfig, cmd *cobra.Command) (*tester.TxGenerator,
 		return nil, err
 	}
 
-	count, err := cmd.Flags().GetUint64(flagCount)
+	count, err := cmd.Flags().GetUint64(flagBatchSize)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func getGenerator(conf *GlobalConnfig, cmd *cobra.Command) (*tester.TxGenerator,
 		return nil, err
 	}
 	opts = append(opts, tester.SetGasLimit(gasLimit))
-	opts = append(opts, tester.SetCount(count))
+	opts = append(opts, tester.SetBatchSize(count))
 
 	gasFeeCap, err := cmd.Flags().GetInt64(flagGasFeeCap)
 	if err != nil {
@@ -129,7 +129,7 @@ func getGenerator(conf *GlobalConnfig, cmd *cobra.Command) (*tester.TxGenerator,
 }
 
 func addGenTxFlags(cmd *cobra.Command) {
-	cmd.Flags().Uint64(flagCount, 10, "the amount of data generated")
+	cmd.Flags().Uint64(flagBatchSize, 10, "number of transactions per batch")
 	cmd.Flags().Bool(flagConcurrent, true, "whether to use concurrent mode,the number of concurrencies is the same as `data-count`")
 	cmd.Flags().String(flagContract, "", "the contract address being tested")
 	cmd.Flags().Int(flagMaxThreads, 100, "maximum number of threads")
