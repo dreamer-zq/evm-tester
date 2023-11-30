@@ -82,6 +82,7 @@ type Transactor struct {
 	sync           bool
 	rs             *Result
 	totalTxs       int64
+	produceTxs     atomic.Int64
 	endTime        time.Time
 	gen            *TxGenerator
 	payloads       chan []*Payload
@@ -140,6 +141,7 @@ func (t *Transactor) produceTx(contractMethodParams ...interface{}) {
 	for {
 		// totalTxs is a counter that keeps track of the total number of transactions sent
 		if t.canFinish() {
+			t.gen.pool.Close()
 			return
 		}
 		payloads, err := t.gen.Run(contractMethodParams...)
@@ -149,6 +151,7 @@ func (t *Transactor) produceTx(contractMethodParams ...interface{}) {
 		}
 		slog.Info("produce transactions", "count", len(payloads))
 		t.payloads <- payloads
+		t.produceTxs.Add(int64(len(payloads)))
 	}
 }
 
@@ -160,7 +163,7 @@ func (t *Transactor) consumeTx() {
 }
 
 func (t *Transactor) listenExit() {
-	tick := time.NewTicker(500 * time.Millisecond)
+	tick := time.NewTicker(1 * time.Second)
 	for {
 		<-tick.C
 		if t.canFinish() {
@@ -172,13 +175,22 @@ func (t *Transactor) listenExit() {
 }
 
 func (t *Transactor) canFinish() bool {
+	currentTxs := t.produceTxs.Load()
+	now := time.Now()
+
+	slog.Info("can finish transactor ?",
+		"totalTxs", t.totalTxs,
+		"current", currentTxs,
+		"now", now,
+		"endTime", t.endTime,
+	)
 	// totalTxs is a counter that keeps track of the total number of transactions sent
-	if t.totalTxs >0 && t.totalTxs >= t.rs.TotalTxCount.Load() {
+	if t.totalTxs > 0 && t.totalTxs <= currentTxs {
 		return true
 	}
 
 	// endTime is a counter that keeps track of the total number of transactions sent
-	if !t.endTime.IsZero() && time.Now().After(t.endTime){
+	if !t.endTime.IsZero() && now.Second() >= t.endTime.Second() {
 		return true
 	}
 	return false

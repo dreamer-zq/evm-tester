@@ -62,7 +62,11 @@ func StartCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			endTime := time.Now().Add(runPeriod)
+
+			var endTime time.Time
+			if runPeriod > 0 {
+				endTime = time.Now().Add(runPeriod)
+			}
 
 			userNum, err := cmd.Flags().GetInt(flagUserNum)
 			if err != nil {
