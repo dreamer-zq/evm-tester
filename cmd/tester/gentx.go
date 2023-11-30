@@ -129,11 +129,16 @@ func getGenerator(conf *GlobalConnfig, cmd *cobra.Command) (*tester.TxGenerator,
 }
 
 func addGenTxFlags(cmd *cobra.Command) {
+	cmd.Flags().String(flagOutput, "", "csv file output path")
+	cmd.MarkFlagRequired(flagOutput)
+	addSendTxFlags(cmd)
+}
+
+func addSendTxFlags(cmd *cobra.Command) {
 	cmd.Flags().Uint64(flagBatchSize, 10, "number of transactions per batch")
 	cmd.Flags().Bool(flagConcurrent, true, "whether to use concurrent mode,the number of concurrencies is the same as `data-count`")
 	cmd.Flags().String(flagContract, "", "the contract address being tested")
 	cmd.Flags().Int(flagMaxThreads, 100, "maximum number of threads")
-	cmd.Flags().String(flagOutput, "", "csv file output path")
 	cmd.Flags().String(flagPrivateKey, "", "send the account private key for the transaction")
 	cmd.Flags().Int64(flagNonce, 0, "user's nonce")
 	cmd.Flags().Int64(flagGasFeeCap, 0, "gas fee cap to use for the 1559 transaction execution (nil = gas price oracle,fetch from chain)")
@@ -141,5 +146,4 @@ func addGenTxFlags(cmd *cobra.Command) {
 	cmd.Flags().Uint64(flagGasLimit, 0, "gas limit to set for the transaction execution (0 = estimate,fetch from chain)")
 
 	cmd.MarkFlagRequired(flagContract)
-	cmd.MarkFlagRequired(flagOutput)
 }
