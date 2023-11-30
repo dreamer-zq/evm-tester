@@ -24,6 +24,7 @@ func NewRootCmd() *cobra.Command {
 	}
 	rootCmd.AddCommand(DeployCmd())
 	rootCmd.AddCommand(GentxCmd())
+	rootCmd.AddCommand(StartCmd())
 
 	rootCmd.PersistentFlags().String(flagURL, "", "turbo endpoint url")
 	rootCmd.PersistentFlags().Int64(flagChainID, 0, "turbo chain-id")

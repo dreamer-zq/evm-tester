@@ -4,7 +4,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/spf13/cobra"
 
 	tester "github.com/dreamer-zq/turbo-tester"
@@ -42,97 +41,95 @@ func GentxCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			contractAddr := common.HexToAddress(contractAddrStr)
 
 			path, err := cmd.Flags().GetString(flagOutput)
 			if err != nil {
 				return err
 			}
 
-			count, err := cmd.Flags().GetInt32(flagCount)
+			tg, err := getGenerator(conf, cmd)
 			if err != nil {
 				return err
 			}
 
-			concurrent, err := cmd.Flags().GetBool(flagConcurrent)
+			data, err := tg.Run(contractAddr)
 			if err != nil {
 				return err
-			}
-
-			contractAddr := common.HexToAddress(contractAddrStr)
-			maxThreads, err := cmd.Flags().GetInt(flagMaxThreads)
-			if err != nil {
-				return err
-			}
-
-			var opts []tester.Option
-			gasLimit, err := cmd.Flags().GetUint64(flagGasLimit)
-			if err != nil {
-				return err
-			}
-			opts = append(opts, tester.SetGasLimit(gasLimit))
-
-			gasFeeCap, err := cmd.Flags().GetInt64(flagGasFeeCap)
-			if err != nil {
-				return err
-			}
-			opts = append(opts, tester.SetGasFeeCap(big.NewInt(gasFeeCap)))
-
-			gasTipCap, err := cmd.Flags().GetInt64(flagGasTipCap)
-			if err != nil {
-				return err
-			}
-			opts = append(opts, tester.SetGasTipCap(big.NewInt(gasTipCap)))
-
-			tg := tester.NewTxGenerator(
-				conf.chainID,
-				simple.GenTx(conf.client, contractAddr),
-				tester.NewPool(maxThreads),
-				opts...,
-			)
-
-			privKey, err := cmd.Flags().GetString(flagPrivateKey)
-			if err != nil {
-				return err
-			}
-
-			var data []*tester.Payload
-			switch {
-			case concurrent:
-				data, err = tg.RandomBatchGenTxs(count, contractAddr)
-				if err != nil {
-					return err
-				}
-				break
-			case privKey != "":
-				sender, err := crypto.HexToECDSA(privKey)
-				if err != nil {
-					return err
-				}
-				nonce, err := cmd.Flags().GetInt64(flagNonce)
-				if err != nil {
-					return err
-				}
-				data, err = tg.BatchGenTxs(sender, big.NewInt(nonce), count, contractAddr)
-				if err != nil {
-					return err
-				}
-				break
-			default:
-				sender, err := crypto.GenerateKey()
-				if err != nil {
-					return err
-				}
-
-				data, err = tg.BatchGenTxs(sender, big.NewInt(0), count, contractAddr)
-				if err != nil {
-					return err
-				}
 			}
 			return tester.SaveToCSV(path, data)
 		},
 	}
 
-	cmd.Flags().Int32(flagCount, 10, "the amount of data generated")
+	addGenTxFlags(cmd)
+	return cmd
+}
+
+func getGenerator(conf *GlobalConnfig, cmd *cobra.Command) (*tester.TxGenerator, error) {
+	contractAddrStr, err := cmd.Flags().GetString(flagContract)
+	if err != nil {
+		return nil, err
+	}
+
+	count, err := cmd.Flags().GetUint64(flagCount)
+	if err != nil {
+		return nil, err
+	}
+
+	contractAddr := common.HexToAddress(contractAddrStr)
+	maxThreads, err := cmd.Flags().GetInt(flagMaxThreads)
+	if err != nil {
+		return nil, err
+	}
+
+	var opts []tester.Option
+	gasLimit, err := cmd.Flags().GetUint64(flagGasLimit)
+	if err != nil {
+		return nil, err
+	}
+	opts = append(opts, tester.SetGasLimit(gasLimit))
+	opts = append(opts, tester.SetCount(count))
+
+	gasFeeCap, err := cmd.Flags().GetInt64(flagGasFeeCap)
+	if err != nil {
+		return nil, err
+	}
+	opts = append(opts, tester.SetGasFeeCap(big.NewInt(gasFeeCap)))
+
+	gasTipCap, err := cmd.Flags().GetInt64(flagGasTipCap)
+	if err != nil {
+		return nil, err
+	}
+	opts = append(opts, tester.SetGasTipCap(big.NewInt(gasTipCap)))
+
+	privKey, err := cmd.Flags().GetString(flagPrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	opts = append(opts, tester.SetPrivKey(privKey))
+
+	nonce, err := cmd.Flags().GetInt64(flagNonce)
+	if err != nil {
+		return nil, err
+	}
+	opts = append(opts, tester.SetNonce(nonce))
+
+	concurrent, err := cmd.Flags().GetBool(flagConcurrent)
+	if err != nil {
+		return nil, err
+	}
+	opts = append(opts, tester.SetConcurrent(concurrent))
+
+	return tester.NewTxGenerator(
+		conf.chainID,
+		simple.GenTx(conf.client, contractAddr),
+		tester.NewPool(maxThreads, "gentx"),
+		opts...,
+	), nil
+}
+
+func addGenTxFlags(cmd *cobra.Command) {
+	cmd.Flags().Uint64(flagCount, 10, "the amount of data generated")
 	cmd.Flags().Bool(flagConcurrent, true, "whether to use concurrent mode,the number of concurrencies is the same as `data-count`")
 	cmd.Flags().String(flagContract, "", "the contract address being tested")
 	cmd.Flags().Int(flagMaxThreads, 100, "maximum number of threads")
@@ -145,5 +142,4 @@ func GentxCmd() *cobra.Command {
 
 	cmd.MarkFlagRequired(flagContract)
 	cmd.MarkFlagRequired(flagOutput)
-	return cmd
 }

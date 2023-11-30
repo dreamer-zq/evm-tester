@@ -18,8 +18,9 @@ import (
 
 // Payload is a struct that contains the raw transaction and the chain ID.
 type Payload struct {
-	RawTx   string `csv:"raw_tx"`
-	ChainID string `csv:"chain_id"`
+	Tx      *types.Transaction `csv:"-"`
+	RawTx   string             `csv:"raw_tx"`
+	ChainID string             `csv:"chain_id"`
 }
 
 // Option is a function type that can be used to configure the TxGenerator.
@@ -57,6 +58,59 @@ func SetGasLimit(gasLimit uint64) Option {
 		return tg
 	}
 }
+
+// SetCount sets the count of the TxGenerator.
+//
+// Parameters:
+// - count: the count to set.
+// Return:
+// - Option: the modified TxGenerator.
+func SetCount(count uint64) Option {
+	return func(tg *TxGenerator) *TxGenerator {
+		tg.count = count
+		return tg
+	}
+}
+
+// SetConcurrent returns an Option function that sets the concurrent flag of a TxGenerator object.
+//
+// Parameters:
+//   concurrent - a boolean value indicating whether the TxGenerator should be executed concurrently.
+//
+// Returns:
+//   An Option function that sets the concurrent flag and returns the modified TxGenerator object.
+func SetConcurrent(concurrent bool) Option {
+	return func(tg *TxGenerator) *TxGenerator {
+		tg.concurrent = concurrent
+		return tg
+	}
+}
+
+// SetNonce sets the nonce value for the TxGenerator.
+//
+// Parameter:
+// - nonce: the nonce value to set.
+//
+// Return:
+// - *TxGenerator: the updated TxGenerator.
+func SetNonce(nonce int64) Option {
+	return func(tg *TxGenerator) *TxGenerator {
+		tg.nonce = nonce
+		return tg
+	}
+}
+
+// SetPrivKey sets the private key for the TxGenerator.
+//
+// privKey: the private key string.
+// Returns: the TxGenerator with the updated private key.
+func SetPrivKey(privKey string) Option {
+	return func(tg *TxGenerator) *TxGenerator {
+		tg.privKey = privKey
+		return tg
+	}
+}
+
 // CreateOrSendTx is a function type that can create or send transactions.
 type CreateOrSendTx func(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error)
 
@@ -68,6 +122,10 @@ type TxGenerator struct {
 	gasFeeCap      *big.Int // Gas fee cap to use for the 1559 transaction execution (nil = gas price oracle)
 	gasTipCap      *big.Int // Gas priority fee cap to use for the 1559 transaction execution (nil = gas price oracle)
 	gasLimit       uint64   // Gas limit to set for the transaction execution (0 = estimate)
+	count          uint64
+	privKey        string
+	nonce          int64
+	concurrent     bool
 }
 
 // NewTxGenerator initializes a new instance of the TxGenerator struct.
@@ -92,7 +150,50 @@ func NewTxGenerator(
 	for _, option := range options {
 		tg = option(tg)
 	}
-	return tg 
+	return tg
+}
+
+// Run runs the TxGenerator.
+//
+// It generates a batch of transactions based on the TxGenerator's configuration.
+// If the TxGenerator is concurrent, it calls the RandomBatchGenTxs method to generate the transactions.
+// If the TxGenerator has a private key, it calls the BatchGenTxs method to generate the transactions using the private key.
+// If neither of the above conditions are met, it generates a new private key and calls the BatchGenTxs method to generate the transactions.
+// It returns the generated transactions and any error that occurred.
+func (tg *TxGenerator) Run(contractMethodParams ...interface{}) ([]*Payload, error) {
+	var (
+		data []*Payload
+		err  error
+	)
+	switch {
+	case tg.concurrent:
+		data, err = tg.RandomBatchGenTxs(contractMethodParams...)
+		if err != nil {
+			return nil, err
+		}
+		break
+	case tg.privKey != "":
+		sender, err := crypto.HexToECDSA(tg.privKey)
+		if err != nil {
+			return nil, err
+		}
+		data, err = tg.BatchGenTxs(sender, big.NewInt(tg.nonce), contractMethodParams...)
+		if err != nil {
+			return nil, err
+		}
+		break
+	default:
+		sender, err := crypto.GenerateKey()
+		if err != nil {
+			return nil, err
+		}
+
+		data, err = tg.BatchGenTxs(sender, big.NewInt(0), contractMethodParams...)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return data, nil
 }
 
 // GenTx generates a transaction using the provided sender's private key, sender nonce, and player address.
@@ -105,6 +206,23 @@ func NewTxGenerator(
 // Returns:
 // - The hexadecimal representation of the generated transaction.
 func (tg *TxGenerator) GenTx(sender *ecdsa.PrivateKey, senderNonce *big.Int, params ...interface{}) (*Payload, error) {
+	rawTransaction, err := tg.genTx(sender, senderNonce, params...)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create or send transaction")
+	}
+
+	txbz, err := rawTransaction.MarshalBinary()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal transaction")
+	}
+	return &Payload{
+		Tx:      rawTransaction,
+		RawTx:   hexutil.Bytes(txbz).String(),
+		ChainID: tg.chainID.String(),
+	}, nil
+}
+
+func (tg *TxGenerator) genTx(sender *ecdsa.PrivateKey, senderNonce *big.Int, params ...interface{}) (*types.Transaction, error) {
 	// Create an authorized transactor and call the store function
 	auth, err := bind.NewKeyedTransactorWithChainID(sender, tg.chainID)
 	if err != nil {
@@ -124,15 +242,7 @@ func (tg *TxGenerator) GenTx(sender *ecdsa.PrivateKey, senderNonce *big.Int, par
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create or send transaction")
 	}
-
-	txbz, err := rawTransaction.MarshalBinary()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal transaction")
-	}
-	return &Payload{
-		RawTx:   hexutil.Bytes(txbz).String(),
-		ChainID: tg.chainID.String(),
-	}, nil
+	return rawTransaction, nil
 }
 
 // BatchGenTxs generates a batch of transactions using the given sender's private key, sender's nonce, batch size, and player address.
@@ -145,9 +255,9 @@ func (tg *TxGenerator) GenTx(sender *ecdsa.PrivateKey, senderNonce *big.Int, par
 //
 // Return:
 // - []string: The generated transactions as a slice of strings.
-func (tg *TxGenerator) BatchGenTxs(sender *ecdsa.PrivateKey, senderNonce *big.Int, batchSize int32, params ...interface{}) ([]*Payload, error) {
-	txs := make([]*Payload, 0, batchSize)
-	for i := 0; i < int(batchSize); i++ {
+func (tg *TxGenerator) BatchGenTxs(sender *ecdsa.PrivateKey, senderNonce *big.Int, params ...interface{}) ([]*Payload, error) {
+	txs := make([]*Payload, 0, tg.count)
+	for i := uint64(0); i < tg.count; i++ {
 		tx, err := tg.GenTx(sender, senderNonce, params...)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to generate transaction")
@@ -178,10 +288,10 @@ func (tg *TxGenerator) RandomGenTx(params ...interface{}) (*Payload, error) {
 // The player parameter is used to specify the address of the player associated with the transactions.
 //
 // The function returns a slice of strings, which represents the generated transactions.
-func (tg *TxGenerator) RandomBatchGenTxs(batchSize int32, params ...interface{}) ([]*Payload, error) {
-	txs := make([]*Payload, 0, batchSize)
+func (tg *TxGenerator) RandomBatchGenTxs(params ...interface{}) ([]*Payload, error) {
+	txs := make([]*Payload, 0, tg.count)
 	mu := sync.Mutex{}
-	for i := 0; i < int(batchSize); i++ {
+	for i := uint64(0); i < tg.count; i++ {
 		tg.pool.Submit(func() {
 			tx, err := tg.RandomGenTx(params...)
 			if err != nil {
