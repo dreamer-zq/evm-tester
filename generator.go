@@ -302,6 +302,6 @@ func (tg *TxGenerator) RandomBatchGenTxs(params ...interface{}) ([]*Payload, err
 			mu.Unlock()
 		})
 	}
-	tg.pool.Close()
+	tg.pool.Finish()
 	return txs, nil
 }

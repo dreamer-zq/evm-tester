@@ -46,7 +46,7 @@ type TransactorOpts func(*Transactor) *Transactor
 //
 // endTime: the end time to be set (int64).
 // Returns: a function that sets the end time for a Transactor (TransactorOpts).
-func SetEndTime(endTime int64) TransactorOpts {
+func SetEndTime(endTime time.Time) TransactorOpts {
 	return func(t *Transactor) *Transactor {
 		t.endTime = endTime
 		return t
@@ -82,7 +82,7 @@ type Transactor struct {
 	sync           bool
 	rs             *Result
 	totalTxs       int64
-	endTime        int64
+	endTime        time.Time
 	gen            *TxGenerator
 	payloads       chan []*Payload
 	exit           chan int
@@ -122,6 +122,7 @@ func (t *Transactor) Run(contractMethodParams ...interface{}) {
 
 	select {
 	case <-t.exit:
+		t.pool.Close()
 		t.rs.Println()
 		return
 	}
@@ -155,9 +156,6 @@ func (t *Transactor) consumeTx() {
 	for payloads := range t.payloads {
 		slog.Info("consume transactions", "count", len(payloads))
 		t.batchSendTx(context.Background(), payloads)
-		if t.canFinish() {
-			t.Stop()
-		}
 	}
 }
 
@@ -168,18 +166,19 @@ func (t *Transactor) listenExit() {
 		if t.canFinish() {
 			slog.Info("stop transactor")
 			t.Stop()
+			return
 		}
 	}
 }
 
 func (t *Transactor) canFinish() bool {
 	// totalTxs is a counter that keeps track of the total number of transactions sent
-	if t.totalTxs > t.rs.TotalTxCount.Load() {
+	if t.totalTxs >0 && t.totalTxs >= t.rs.TotalTxCount.Load() {
 		return true
 	}
 
 	// endTime is a counter that keeps track of the total number of transactions sent
-	if t.endTime > 0 && time.Now().Unix() > t.endTime {
+	if !t.endTime.IsZero() && time.Now().After(t.endTime){
 		return true
 	}
 	return false
@@ -200,7 +199,7 @@ func (t *Transactor) batchSendTx(ctx context.Context, payloads []*Payload) {
 			t.Count(err, time.Since(begin).Nanoseconds())
 		})
 	}
-	t.pool.Finish()
+	// t.pool.Finish()
 }
 
 func (t *Transactor) batchSendTxBySync(ctx context.Context, payloads []*Payload) {

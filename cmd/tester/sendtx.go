@@ -75,7 +75,7 @@ func StartCmd() *cobra.Command {
 				tg,
 				tester.SetTotalTxs(totalTxs),
 				tester.SetSync(sync),
-				tester.SetEndTime(endTime.Unix()),
+				tester.SetEndTime(endTime),
 			)
 			transactor.Run(contractAddr)
 			return nil
