@@ -150,8 +150,8 @@ func (t *Transactor) produceTx(contractMethodParams ...interface{}) {
 			continue
 		}
 		slog.Info("produce transactions", "count", len(payloads))
-		t.payloads <- payloads
 		t.produceTxs.Add(int64(len(payloads)))
+		t.payloads <- payloads
 	}
 }
 
