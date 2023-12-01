@@ -3,16 +3,20 @@ package tester
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/olekukonko/tablewriter"
 	"golang.org/x/exp/slog"
 )
 
 // Result represents the result of a transaction.
 type Result struct {
+	Batch              int64
 	TotalFailedTxCount int64
 	TotalTxCount       atomic.Int64
 	StartTime          time.Time
@@ -21,22 +25,10 @@ type Result struct {
 	MaxResponseTime    int64
 }
 
-// Println prints the result.
-//
-// It prints the following information:
-// - FailedTx: the total number of failed transactions.
-// - TotalTx: the total number of transactions.
-// - TotalTime: the total time taken for all transactions.
-// - MinResponseTime: the minimum response time among all transactions.
-// - MaxResponseTime: the maximum response time among all transactions.
-func (r *Result) Println() {
-	fmt.Println(
-		"FailedTx:", r.TotalFailedTxCount,
-		"TotalTx:", r.TotalTxCount.Load(),
-		"TotalTime:", time.Duration(r.EndTime.Sub(r.StartTime))*time.Nanosecond,
-		"MinResponseTime:", time.Duration(r.MinResponseTime)*time.Nanosecond,
-		"MaxResponseTime:", time.Duration(r.MaxResponseTime)*time.Nanosecond,
-	)
+// BatchResult represents the result of a batch of transactions.
+type BatchResult struct {
+	batchNo  int64
+	payloads []*Payload
 }
 
 // TransactorOpts is a function that takes in a pointer to a Transactor object
@@ -64,7 +56,6 @@ func SetSync(sync bool) TransactorOpts {
 	}
 }
 
-
 // SetTotalBatch sets the total batch value for the TransactorOpts.
 //
 // totalBatch: The total batch value to be set.
@@ -76,20 +67,37 @@ func SetTotalBatch(totalBatch int64) TransactorOpts {
 	}
 }
 
+// SetSegmentStat sets the segmentStat field of the TransactorOpts struct.
+//
+// It takes a boolean value segmentStat as a parameter and returns a TransactorOpts function.
+func SetSegmentStat(segmentStat bool) TransactorOpts {
+	return func(t *Transactor) *Transactor {
+		t.segmentStat = segmentStat
+		return t
+	}
+}
+
 // Transactor is a struct that can be used to send transactions.
 type Transactor struct {
-	eth            *ethclient.Client
-	pool           *Pool
-	sync           bool
-	rs             *Result
-	totalBatch     int64
-	batchNo        atomic.Int64
-	endTime        time.Time
-	gen            *TxGenerator
-	payloads       chan []*Payload
-	exit           chan int
-	contractParams []interface{}
-	mu             sync.Mutex
+	eth  *ethclient.Client
+	pool *Pool
+	sync bool
+
+	totalBatch int64
+	batchNo    atomic.Int64
+	produceTxs atomic.Int64
+	endTime    time.Time
+	gen        *TxGenerator
+	batch      chan *BatchResult
+	mu         sync.Mutex
+
+	segmentStat bool
+	rs          *Result
+	segments    map[int64]*Result
+
+	producerExit atomic.Bool
+
+	exit chan int
 }
 
 // NewTransactor creates a new Transactor instance.
@@ -102,8 +110,9 @@ func NewTransactor(eth *ethclient.Client, maxConcurrentNum int, gen *TxGenerator
 		pool:     NewPool(maxConcurrentNum, "transactor"),
 		rs:       &Result{},
 		gen:      gen,
-		payloads: make(chan []*Payload, 10),
+		batch:    make(chan *BatchResult, 10),
 		exit:     make(chan int),
+		segments: make(map[int64]*Result),
 	}
 	for _, opt := range opts {
 		transactor = opt(transactor)
@@ -125,7 +134,7 @@ func (t *Transactor) Run() {
 	select {
 	case <-t.exit:
 		t.pool.Close()
-		t.rs.Println()
+		t.printResult()
 		return
 	}
 }
@@ -141,7 +150,7 @@ func (t *Transactor) Stop() {
 func (t *Transactor) produceTx() {
 	for {
 		// totalTxs is a counter that keeps track of the total number of transactions sent
-		if t.canFinish() {
+		if t.stopProducer() {
 			t.gen.pool.Close()
 			return
 		}
@@ -150,16 +159,22 @@ func (t *Transactor) produceTx() {
 			slog.Error("Failed to generate transaction", "err", err)
 			continue
 		}
-		slog.Info("produce transactions", "count", len(payloads))
+		batchNo := t.batchNo.Load()
+		slog.Info("produce transactions", "count", len(payloads), "batchNo", batchNo)
+
 		t.batchNo.Add(1)
-		t.payloads <- payloads
+		t.produceTxs.Add(int64(len(payloads)))
+		t.batch <- &BatchResult{
+			batchNo:  batchNo,
+			payloads: payloads,
+		}
 	}
 }
 
 func (t *Transactor) consumeTx() {
-	for payloads := range t.payloads {
-		slog.Info("consume transactions", "count", len(payloads))
-		t.batchSendTx(context.Background(), payloads)
+	for batch := range t.batch {
+		slog.Info("consume transactions", "batchNo", batch.batchNo)
+		t.batchSendTx(context.Background(), batch)
 	}
 }
 
@@ -167,18 +182,20 @@ func (t *Transactor) listenExit() {
 	tick := time.NewTicker(1 * time.Second)
 	for {
 		<-tick.C
-		if t.canFinish() {
-			slog.Info("stop transactor")
+		_ = t.stopProducer()
+		if t.producerExit.Load() && t.rs.TotalTxCount.Load() == t.produceTxs.Load() {
 			t.Stop()
-			return
 		}
 	}
 }
 
-func (t *Transactor) canFinish() bool {
+func (t *Transactor) stopProducer() bool {
+	if t.producerExit.Load() {
+		return true
+	}
+
 	batchNo := t.batchNo.Load()
 	now := time.Now()
-
 	slog.Info("can finish transactor ?",
 		"totalBatch", t.totalBatch,
 		"current", batchNo,
@@ -187,39 +204,44 @@ func (t *Transactor) canFinish() bool {
 	)
 	// totalTxs is a counter that keeps track of the total number of transactions sent
 	if t.totalBatch > 0 && t.totalBatch <= batchNo {
+		t.producerExit.Store(true)
 		return true
 	}
 
 	// endTime is a counter that keeps track of the total number of transactions sent
 	if !t.endTime.IsZero() && now.Second() >= t.endTime.Second() {
+		t.producerExit.Store(true)
 		return true
 	}
 	return false
 }
 
 // BatchSendTx sends a batch of transactions using the provided context and transaction objects.
-func (t *Transactor) batchSendTx(ctx context.Context, payloads []*Payload) {
+func (t *Transactor) batchSendTx(ctx context.Context, batch *BatchResult) {
 	if t.sync {
-		t.batchSendTxBySync(ctx, payloads)
+		t.batchSendTxBySync(ctx, batch)
 		return
 	}
 
-	for _, payload := range payloads {
+	for _, payload := range batch.payloads {
 		txCopy := *payload.Tx
 		t.pool.Submit(func() {
 			begin := time.Now()
 			err := t.eth.SendTransaction(ctx, &txCopy)
-			t.Count(err, time.Since(begin).Nanoseconds())
+			t.Count(batch.batchNo, err, time.Since(begin).Nanoseconds())
 		})
 	}
-	// t.pool.Finish()
+	segmentStat := true
+	if segmentStat {
+		t.pool.Finish()
+	}
 }
 
-func (t *Transactor) batchSendTxBySync(ctx context.Context, payloads []*Payload) {
-	for _, payload := range payloads {
+func (t *Transactor) batchSendTxBySync(ctx context.Context, batch *BatchResult) {
+	for _, payload := range batch.payloads {
 		begin := time.Now()
 		err := t.eth.SendTransaction(ctx, payload.Tx)
-		t.Count(err, time.Since(begin).Nanoseconds())
+		t.Count(batch.batchNo, err, time.Since(begin).Nanoseconds())
 	}
 }
 
@@ -227,24 +249,82 @@ func (t *Transactor) batchSendTxBySync(ctx context.Context, payloads []*Payload)
 //
 // It takes an error as a parameter to determine if the transaction was successful or not.
 // The function also takes an integer value representing the duration of the transaction.
-func (t *Transactor) Count(err error, took int64) {
+func (t *Transactor) Count(batchNo int64, err error, took int64) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	if t.rs.MinResponseTime > took {
-		t.rs.MinResponseTime = took
-	}
-	if t.rs.MaxResponseTime < took {
-		t.rs.MaxResponseTime = took
+	count := func(rs *Result, err error, took int64) {
+		rs.Batch = batchNo
+		if rs.MinResponseTime > took {
+			rs.MinResponseTime = took
+		}
+		if rs.MaxResponseTime < took {
+			rs.MaxResponseTime = took
+		}
+
+		rs.TotalTxCount.Add(1)
+		if err != nil {
+			rs.TotalFailedTxCount++
+		}
+
+		if rs.StartTime.IsZero() {
+			rs.StartTime = time.Now()
+		}
+		rs.EndTime = time.Now()
 	}
 
-	t.rs.TotalTxCount.Add(1)
-	if err != nil {
-		t.rs.TotalFailedTxCount++
+	// totalTxs is a counter that keeps track of the total number of transactions sent
+	count(t.rs, err, took)
+	// segmented statistics of the results of each batch
+	if t.totalBatch > 1 && t.segmentStat {
+		rs, ok := t.segments[batchNo]
+		if !ok {
+			rs = &Result{}
+			t.segments[batchNo] = rs
+		}
+		count(rs, err, took)
+	}
+}
+
+func (t *Transactor) printResult() {
+	header := []string{"BatchNo", "Sample", "Fail", "Transaction/s", "TotalTime", "MinResponseTime", "MaxResponseTime", "AvgResponseTime"}
+	formatResult := func(rs *Result) []string {
+		totalTxCount := rs.TotalTxCount.Load()
+		totalTime := rs.EndTime.Sub(rs.StartTime)
+		row := []string{
+			strconv.FormatInt(rs.Batch, 10),
+			strconv.FormatInt(totalTxCount, 10),
+			strconv.FormatInt(rs.TotalFailedTxCount, 10),
+			strconv.FormatFloat(float64(totalTxCount-rs.TotalFailedTxCount)/totalTime.Seconds(), 'f', 6, 64),
+			rs.EndTime.Sub(rs.StartTime).String(),
+			(time.Duration(rs.MinResponseTime) * time.Nanosecond).String(),
+			(time.Duration(rs.MaxResponseTime) * time.Nanosecond).String(),
+			(time.Duration((rs.MaxResponseTime+rs.MinResponseTime)/2) * time.Nanosecond).String(),
+		}
+		return row
+	}
+	if t.totalBatch > 1 && t.segmentStat {
+		fmt.Println("Output segmented statistics:")
+
+		table := tablewriter.NewWriter(os.Stdout)
+		table.SetHeader(header)
+		table.SetAutoFormatHeaders(false)
+
+		for batchNo := int64(0); batchNo < t.totalBatch; batchNo++ {
+			rs, ok := t.segments[batchNo]
+			if !ok {
+				continue
+			}
+			table.Append(formatResult(rs))
+		}
+		table.Render()
 	}
 
-	if t.rs.StartTime.IsZero() {
-		t.rs.StartTime = time.Now()
-	}
-	t.rs.EndTime = time.Now()
+	fmt.Println("Output total statistics:")
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader(header)
+	table.SetAutoFormatHeaders(false)
+	table.Append(formatResult(t.rs))
+	table.Render()
 }
