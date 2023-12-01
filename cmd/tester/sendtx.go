@@ -3,10 +3,10 @@ package cmd
 import (
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 
 	tester "github.com/dreamer-zq/turbo-tester"
+	"github.com/dreamer-zq/turbo-tester/simple"
 )
 
 var (
@@ -27,7 +27,7 @@ var (
 // - Retrieves the generator from the command.
 // - Runs the generator with the contract address.
 // Returns the generated cobra command.
-func StartCmd() *cobra.Command {
+func StartCmd(sampler simple.Sampler) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Generate test data and output to cvs file",
@@ -37,13 +37,7 @@ func StartCmd() *cobra.Command {
 				return err
 			}
 
-			contractAddrStr, err := cmd.Flags().GetString(flagContract)
-			if err != nil {
-				return err
-			}
-			contractAddr := common.HexToAddress(contractAddrStr)
-
-			tg, err := getGenerator(conf, cmd)
+			tg, err := getGenerator(conf, cmd,sampler)
 			if err != nil {
 				return err
 			}
@@ -81,11 +75,12 @@ func StartCmd() *cobra.Command {
 				tester.SetSync(sync),
 				tester.SetEndTime(endTime),
 			)
-			transactor.Run(contractAddr)
+			transactor.Run()
 			return nil
 		},
 	}
 	addSendTxFlags(cmd)
+	sampler.AddFlags(cmd)
 	cmd.Flags().Int(flagUserNum, 0, "maximum number of concurrent users")
 	cmd.Flags().Duration(flagRunPeriod, 0, "stress test execution time,eg: 5m")
 	cmd.Flags().Bool(flagSync, false, "whether transaction execution is in synchronous mode")

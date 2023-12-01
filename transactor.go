@@ -117,9 +117,9 @@ func NewTransactor(eth *ethclient.Client, maxConcurrentNum int, gen *TxGenerator
 // The function waits for a signal on the exit channel. If the signal is received,
 // it prints statistics about the transaction processing, closes the transaction pool,
 // and returns.
-func (t *Transactor) Run(contractMethodParams ...interface{}) {
+func (t *Transactor) Run() {
 	go t.listenExit()
-	go t.produceTx(contractMethodParams...)
+	go t.produceTx()
 	go t.consumeTx()
 
 	select {
@@ -138,14 +138,14 @@ func (t *Transactor) Stop() {
 	t.exit <- 1
 }
 
-func (t *Transactor) produceTx(contractMethodParams ...interface{}) {
+func (t *Transactor) produceTx() {
 	for {
 		// totalTxs is a counter that keeps track of the total number of transactions sent
 		if t.canFinish() {
 			t.gen.pool.Close()
 			return
 		}
-		payloads, err := t.gen.Run(contractMethodParams...)
+		payloads, err := t.gen.Run()
 		if err != nil {
 			slog.Error("Failed to generate transaction", "err", err)
 			continue

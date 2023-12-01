@@ -3,6 +3,7 @@ package cmd
 import (
 	"math/big"
 
+	"github.com/dreamer-zq/turbo-tester/simple"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -22,9 +23,12 @@ func NewRootCmd() *cobra.Command {
 		Use:   "tester",
 		Short: "Turbo tester app command",
 	}
-	rootCmd.AddCommand(DeployCmd())
-	rootCmd.AddCommand(GentxCmd())
-	rootCmd.AddCommand(StartCmd())
+
+	sampler := simple.TicketGameSampler{}
+
+	rootCmd.AddCommand(DeployCmd(sampler))
+	rootCmd.AddCommand(GentxCmd(sampler))
+	rootCmd.AddCommand(StartCmd(sampler))
 
 	rootCmd.PersistentFlags().String(flagURL, "", "turbo endpoint url")
 	rootCmd.PersistentFlags().Int64(flagChainID, 0, "turbo chain-id")

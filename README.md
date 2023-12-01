@@ -28,5 +28,11 @@ make build
 5. Generate
 
 ```bash
-./build/tester gentx --contract=<contract-addr> --output ~/Downloads --url http://localhost:8545 --chain-id 1333 --count 10 --gas-fee-cap 150000 --gas-tip-cap 50000 --gas-limit 200000
+./build/tester gentx --contract=0x476F62693e194C50141c62D818D6112a9a70826a --output ~/Downloads --url http://localhost:8545 --chain-id 1223 --batch-size 1000 --gas-fee-cap 150000 --gas-tip-cap 50000 --gas-limit 200000  --contract-method-params 0x476F62693e194C50141c62D818D6112a9a70826a
+```
+
+6. Start
+
+```bash
+./build/tester start --contract=0x476F62693e194C50141c62D818D6112a9a70826a --url http://localhost:8545 --chain-id 1223 --batch-size 1000 --gas-fee-cap 150000 --gas-tip-cap 50000 --gas-limit 200000  --run-period 5s --run-user-num 10  --contract-method-params 0x476F62693e194C50141c62D818D6112a9a70826a
 ```

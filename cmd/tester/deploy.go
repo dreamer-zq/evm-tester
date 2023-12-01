@@ -10,19 +10,19 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/spf13/cobra"
 
-	"github.com/dreamer-zq/turbo-tester/simple/gen"
+	"github.com/dreamer-zq/turbo-tester/simple"
 )
 
 // DeployCmd returns a new instance of the `cobra.Command` struct for the `deploy` command.
 //
 // No parameters.
 // Returns a pointer to a `cobra.Command` struct.
-func DeployCmd() *cobra.Command {
+func DeployCmd(sampler simple.Sampler) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "deploy",
 		Short: "Deploy a contract",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			conf,err := loadGlobalFlags(cmd)
+			conf, err := loadGlobalFlags(cmd)
 			if err != nil {
 				return err
 			}
@@ -34,14 +34,14 @@ func DeployCmd() *cobra.Command {
 				return errors.Wrap(err, "failed to create authorized transactor")
 			}
 
-			contractAddr, _, _, err := gen.DeployTicketGame(auth, conf.client)
+			contractAddr, err := sampler.DeployContract(cmd, auth, conf.client)
 			if err != nil {
 				return errors.Wrap(err, "failed to deploy contract")
 			}
 
-			fmt.Println("ContractAddr",contractAddr.Hex())
-			fmt.Println("DeployerAddr",crypto.PubkeyToAddress(senderPrivateKey.PublicKey).Hex())
-			fmt.Println("DeployerPriv",hexutil.Bytes(crypto.FromECDSA(senderPrivateKey)).String())
+			fmt.Println("ContractAddr", contractAddr.Hex())
+			fmt.Println("DeployerAddr", crypto.PubkeyToAddress(senderPrivateKey.PublicKey).Hex())
+			fmt.Println("DeployerPriv", hexutil.Bytes(crypto.FromECDSA(senderPrivateKey)).String())
 			return nil
 		},
 	}
