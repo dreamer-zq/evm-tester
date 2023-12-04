@@ -235,6 +235,13 @@ func (t *Transactor) batchSendTx(ctx context.Context, batch *BatchResult) {
 			t.Count(batch.batchNo, err, time.Since(begin).Nanoseconds())
 		})
 	}
+	slog.Info("current executed transaction information",
+		"totalBatch", t.totalBatch,
+		"currentBatch", batch.batchNo,
+		"totalTx", t.rs.TotalTxCount.Load(),
+		"failedTx", t.rs.TotalFailedTxCount,
+		"startTime", t.rs.StartTime,
+	)
 	segmentStat := true
 	if segmentStat {
 		t.pool.Finish()
