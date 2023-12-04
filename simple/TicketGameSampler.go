@@ -1,7 +1,9 @@
 package simple
 
 import (
+	"fmt"
 	"log"
+	"math/big"
 
 	"github.com/pkg/errors"
 
@@ -39,15 +41,16 @@ func (tgs TicketGameSampler) GenTxBuilder(cmd *cobra.Command, conn *ethclient.Cl
 		return nil, err
 	}
 
+	if len(contractParams) != 1 {
+			return nil, errors.New("invalid contract params")
+	}
+
 	ticker, err := gen.NewTicketGame(contractAddr, conn)
 	if err != nil {
 		log.Fatalf("Failed to instantiate Storage contract: %v", err)
 	}
 
 	return func(opts *bind.TransactOpts) (*types.Transaction, error) {
-		if len(contractParams) != 1 {
-			return nil, nil
-		}
 		player := common.HexToAddress(contractParams[0])
 		tokenURI := genTokenURI(opts.Nonce)
 		return ticker.Redeem(opts, player, tokenURI)
@@ -77,4 +80,8 @@ func (tgs TicketGameSampler) DeployContract(_ *cobra.Command, auth *bind.Transac
 		return common.Address{}, errors.Wrap(err, "failed to deploy contract")
 	}
 	return contractAddr, nil
+}
+
+func genTokenURI(senderNonce *big.Int) string {
+	return fmt.Sprintf("http://redeem.io/%d", senderNonce.Int64())
 }

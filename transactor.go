@@ -182,10 +182,8 @@ func (t *Transactor) listenExit() {
 	tick := time.NewTicker(1 * time.Second)
 	for {
 		<-tick.C
-		_ = t.stopProducer()
-		if t.producerExit.Load() && t.rs.TotalTxCount.Load() == t.produceTxs.Load() {
-			t.Stop()
-		}
+		t.stopProducer()
+		t.stopConsumer()
 	}
 }
 
@@ -214,6 +212,12 @@ func (t *Transactor) stopProducer() bool {
 		return true
 	}
 	return false
+}
+
+func (t *Transactor) stopConsumer() {
+	if t.producerExit.Load() && t.rs.TotalTxCount.Load() == t.produceTxs.Load() {
+		t.Stop()
+	}
 }
 
 // BatchSendTx sends a batch of transactions using the provided context and transaction objects.
