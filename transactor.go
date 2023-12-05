@@ -106,13 +106,13 @@ type Transactor struct {
 // It returns a pointer to a Transactor.
 func NewTransactor(eth *ethclient.Client, maxConcurrentNum int, gen *TxGenerator, opts ...TransactorOpts) *Transactor {
 	transactor := &Transactor{
-		eth:      eth,
-		pool:     NewPool(maxConcurrentNum, "transactor"),
-		rs:       &Result{},
-		gen:      gen,
-		batch:    make(chan *BatchResult, 10),
-		exit:     make(chan int),
-		segments: make(map[int64]*Result),
+		eth:   eth,
+		pool:  NewPool(maxConcurrentNum, "transactor"),
+		rs:    &Result{},
+		gen:   gen,
+		batch: make(chan *BatchResult, 10),
+		exit:  make(chan int),
+		// segments: make(map[int64]*Result),
 	}
 	for _, opt := range opts {
 		transactor = opt(transactor)
@@ -241,6 +241,7 @@ func (t *Transactor) batchSendTx(ctx context.Context, batch *BatchResult) {
 		"totalTx", t.rs.TotalTxCount.Load(),
 		"failedTx", t.rs.TotalFailedTxCount,
 		"startTime", t.rs.StartTime,
+		"pool", t.pool.Stat(),
 	)
 	segmentStat := true
 	if segmentStat {
@@ -266,7 +267,7 @@ func (t *Transactor) Count(batchNo int64, err error, took int64) {
 
 	count := func(rs *Result, err error, took int64) {
 		rs.Batch = batchNo
-		if rs.MinResponseTime > took {
+		if rs.MinResponseTime > took || rs.MinResponseTime == 0 {
 			rs.MinResponseTime = took
 		}
 		if rs.MaxResponseTime < took {
@@ -275,6 +276,7 @@ func (t *Transactor) Count(batchNo int64, err error, took int64) {
 
 		rs.TotalTxCount.Add(1)
 		if err != nil {
+			slog.Error("failed to send transaction", "err", err, "batchNo", batchNo)
 			rs.TotalFailedTxCount++
 		}
 

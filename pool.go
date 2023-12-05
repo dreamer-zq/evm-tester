@@ -3,18 +3,25 @@ package tester
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/panjf2000/ants/v2"
 	"golang.org/x/exp/slog"
 )
 
+// Stat is the statistics of the Pool.
+type Stat struct {
+	Running int
+	Waiting int
+	Free    int
+	Cap     int
+	Name    string
+}
+
 // Pool is a pool of goroutines that can be used to execute tasks.
 type Pool struct {
 	service string
-	p  *ants.Pool
-	t  *time.Ticker
-	wg sync.WaitGroup
+	p       *ants.Pool
+	wg      sync.WaitGroup
 }
 
 // NewPool creates a new pool with the specified size.
@@ -24,17 +31,15 @@ type Pool struct {
 //
 // Returns:
 // - a pointer to a Pool object.
-func NewPool(size int,service string) *Pool {
+func NewPool(size int, service string) *Pool {
 	p, err := ants.NewPool(size, ants.WithLogger(newLogger()))
 	if err != nil {
 		panic(err)
 	}
 	pool := &Pool{
 		service: service,
-		p: p,
-		t: time.NewTicker(5 * time.Second),
+		p:       p,
 	}
-	go pool.start()
 	return pool
 }
 
@@ -57,7 +62,6 @@ func (p *Pool) Submit(task func()) {
 func (p *Pool) Close() {
 	p.wg.Wait()
 	p.p.Release()
-	p.t.Stop()
 }
 
 // Finish waits until all goroutines have finished.
@@ -68,9 +72,17 @@ func (p *Pool) Finish() {
 	p.wg.Wait()
 }
 
-func (p *Pool) start() {
-	for range p.t.C {
-		slog.Info("goroutine counter","service",p.service, "running", p.p.Running(), "waiting", p.p.Waiting())
+// Stat returns the statistics of the Pool.
+//
+// It returns a stat struct containing the number of running, waiting, free, and maximum capacity of the Pool,
+// as well as the name of the service associated with the Pool.
+func (p *Pool) Stat() Stat {
+	return Stat{
+		Running: p.p.Running(),
+		Waiting: p.p.Waiting(),
+		Free:    p.p.Free(),
+		Cap:     p.p.Cap(),
+		Name:    p.service,
 	}
 }
 
