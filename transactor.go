@@ -110,9 +110,9 @@ func NewTransactor(eth *ethclient.Client, maxConcurrentNum int, gen *TxGenerator
 		pool:  NewPool(maxConcurrentNum, "transactor"),
 		rs:    &Result{},
 		gen:   gen,
-		batch: make(chan *BatchResult, 10),
+		batch: make(chan *BatchResult, 100),
 		exit:  make(chan int),
-		// segments: make(map[int64]*Result),
+		segments: make(map[int64]*Result),
 	}
 	for _, opt := range opts {
 		transactor = opt(transactor)
