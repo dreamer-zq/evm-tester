@@ -87,7 +87,6 @@ func StartCmd(sampler simple.Sampler) *cobra.Command {
 		},
 	}
 	addSendTxFlags(cmd)
-	sampler.AddFlags(cmd)
 	cmd.Flags().Int(flagUserNum, 0, "maximum number of concurrent users")
 	cmd.Flags().Duration(flagRunPeriod, 0, "stress test execution time,eg: 5m")
 	cmd.Flags().Bool(flagSync, false, "whether transaction execution is in synchronous mode")

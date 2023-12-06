@@ -3,6 +3,7 @@ package cmd
 import (
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 
 	tester "github.com/dreamer-zq/turbo-tester"
@@ -10,16 +11,18 @@ import (
 )
 
 var (
-	flagBatchSize  = "batch-size"
-	flagConcurrent = "concurrent"
-	flagContract   = "contract"
-	flagMaxThreads = "max-threads"
-	flagOutput     = "output"
-	flagGasFeeCap  = "gas-fee-cap"
-	flagGasTipCap  = "gas-tip-cap"
-	flagGasLimit   = "gas-limit"
-	flagPrivateKey = "private-key"
-	flagNonce      = "nonce"
+	flagBatchSize      = "batch-size"
+	flagConcurrent     = "concurrent"
+	flagContract       = "contract"
+	flagMaxThreads     = "max-threads"
+	flagOutput         = "output"
+	flagGasFeeCap      = "gas-fee-cap"
+	flagGasTipCap      = "gas-tip-cap"
+	flagGasLimit       = "gas-limit"
+	flagPrivateKey     = "private-key"
+	flagNonce          = "nonce"
+	flagContractParams = "contract-method-params"
+	flagContractMethod = "contract-method"
 )
 
 // GentxCmd returns a cobra Command for the "gentx" command.
@@ -55,7 +58,6 @@ func GentxCmd(sampler simple.Sampler) *cobra.Command {
 	}
 
 	addGenTxFlags(cmd)
-	sampler.AddFlags(cmd)
 	return cmd
 }
 
@@ -108,7 +110,24 @@ func getGenerator(conf *GlobalConnfig, cmd *cobra.Command, sampler simple.Sample
 	}
 	opts = append(opts, tester.SetConcurrent(concurrent))
 
-	txBuilrder, err := sampler.GenTxBuilder(cmd, conf.client)
+	method, err := cmd.Flags().GetString(flagContractMethod)
+	if err != nil {
+		return nil, err
+	}
+
+	contractParams, err := cmd.Flags().GetStringSlice(flagContractParams)
+	if err != nil {
+		return nil, err
+	}
+
+	contractAddrStr, err := cmd.Flags().GetString(flagContract)
+	if err != nil {
+		return nil, err
+	}
+	contractAddr := common.HexToAddress(contractAddrStr)
+	sampler.SetContract(contractAddr)
+
+	txBuilrder, err := sampler.GenTxBuilder(conf.client, method, contractParams)
 	if err != nil {
 		return nil, err
 	}
@@ -136,6 +155,10 @@ func addSendTxFlags(cmd *cobra.Command) {
 	cmd.Flags().Int64(flagGasFeeCap, 0, "gas fee cap to use for the 1559 transaction execution (nil = gas price oracle,fetch from chain)")
 	cmd.Flags().Int64(flagGasTipCap, 0, "gas priority fee cap to use for the 1559 transaction execution (nil = gas price oracle,fetch from chain)")
 	cmd.Flags().Uint64(flagGasLimit, 0, "gas limit to set for the transaction execution (0 = estimate,fetch from chain)")
+	cmd.Flags().String(flagContractMethod, "", "the contract method name being tested")
+	cmd.Flags().StringSlice(flagContractParams, []string{}, "the contract method params being tested")
+	cmd.Flags().String(flagContract, "", "the contract address being tested")
 
 	cmd.MarkFlagRequired(flagContract)
+	cmd.MarkFlagRequired(flagContractMethod)
 }

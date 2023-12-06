@@ -1,10 +1,6 @@
 package simple
 
 import (
-	"fmt"
-	"log"
-	"math/big"
-
 	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -23,58 +19,51 @@ var (
 )
 
 // TicketGameSampler is a struct that implements the Sampler interface.
-type TicketGameSampler struct{}
+type TicketGameSampler struct {
+	contractAddr common.Address
+}
+
+// TicketGameSamplerRedeemMethod is a struct that implements the Method interface.
+type TicketGameSamplerRedeemMethod struct {
+	contract *gen.TicketGame
+}
+
+// SetContract sets the contract address for the TicketGameSampler.
+//
+// contractAddr: the address of the contract to be set.
+func (tgs *TicketGameSampler) SetContract(contractAddr common.Address) {
+	tgs.contractAddr = contractAddr
+}
 
 // GenTxBuilder generates a CreateOrSendTx function for the TicketGameSampler struct.
 //
 // It takes a *cobra.Command, *ethclient.Client, and common.Address as parameters.
 // It returns a CreateOrSendTx function and an error.
-func (tgs TicketGameSampler) GenTxBuilder(cmd *cobra.Command, conn *ethclient.Client) (tester.CreateTx, error) {
-	contractAddrStr, err := cmd.Flags().GetString(flagContract)
-	if err != nil {
-		return nil, err
-	}
-	contractAddr := common.HexToAddress(contractAddrStr)
-
-	contractParams, err := cmd.Flags().GetStringSlice(flagContractParams)
+func (tgs *TicketGameSampler) GenTxBuilder(conn *ethclient.Client, method string, params []string) (tester.CreateTx, error) {
+	methodMap, err := tgs.MethodMap(conn)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(contractParams) != 1 {
-			return nil, errors.New("invalid contract params")
+	m, ok := methodMap[method]
+	if !ok {
+		return nil, errors.New("invalid method")
 	}
-
-	ticker, err := gen.NewTicketGame(contractAddr, conn)
+	p, err := m.FormatParams(params)
 	if err != nil {
-		log.Fatalf("Failed to instantiate Storage contract: %v", err)
+		return nil, err
 	}
 
 	return func(opts *bind.TransactOpts) (*types.Transaction, error) {
-		player := common.HexToAddress(contractParams[0])
-		tokenURI := genTokenURI(opts.Nonce)
-		return ticker.Redeem(opts, player, tokenURI)
+		return m.Call(opts, p...)
 	}, nil
-}
-
-// AddFlags adds flags to the given command.
-//
-// Parameters:
-// - cmd: a pointer to a cobra.Command object.
-//
-// Return type: None.
-func (tgs TicketGameSampler) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().StringSlice(flagContractParams, []string{}, "the contract method params being tested")
-	cmd.Flags().String(flagContract, "", "the contract address being tested")
-
-	cmd.MarkFlagRequired(flagContract)
 }
 
 // DeployContract deploys the TicketGame contract.
 //
 // It takes an authenticated transaction options and a contract backend as parameters.
 // It returns the address of the deployed contract and an error if the deployment fails.
-func (tgs TicketGameSampler) DeployContract(_ *cobra.Command, auth *bind.TransactOpts, backend bind.ContractBackend) (common.Address, error) {
+func (tgs *TicketGameSampler) DeployContract(_ *cobra.Command, auth *bind.TransactOpts, backend bind.ContractBackend) (common.Address, error) {
 	contractAddr, _, _, err := gen.DeployTicketGame(auth, backend)
 	if err != nil {
 		return common.Address{}, errors.Wrap(err, "failed to deploy contract")
@@ -82,6 +71,44 @@ func (tgs TicketGameSampler) DeployContract(_ *cobra.Command, auth *bind.Transac
 	return contractAddr, nil
 }
 
-func genTokenURI(senderNonce *big.Int) string {
-	return fmt.Sprintf("http://redeem.io/%d", senderNonce.Int64())
+// MethodMap returns a map of methods for the TicketGameSampler type.
+//
+// No parameters.
+// Returns a map of string keys to Method values.
+func (tgs *TicketGameSampler) MethodMap(conn *ethclient.Client) (map[string]Method, error) {
+	ticker, err := gen.NewTicketGame(tgs.contractAddr, conn)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]Method{
+		"redeem": TicketGameSamplerRedeemMethod{ticker},
+	}, nil
+}
+
+// FormatParams formats the params for the TicketGameSamplerRedeemMethod Go function.
+//
+// It takes in a slice of strings called params and returns a slice of interfaces and an error.
+func (t TicketGameSamplerRedeemMethod) FormatParams(params []string) ([]interface{}, error) {
+	if len(params) != 1 {
+		return nil, errors.New("invalid contract params")
+	}
+
+	player := common.HexToAddress(params[0])
+	tokenURI := "http://redeem.io/"
+	return []interface{}{player, tokenURI}, nil
+}
+
+// Call is the implementation of the BindFlags method.
+//
+// Call executes the TicketGameSamplerRedeemMethod contract method.
+// It takes an *bind.TransactOpts and an optional variadic parameter params of type interface{}.
+// It returns a *types.Transaction and an error.
+func (t TicketGameSamplerRedeemMethod) Call(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error) {
+	if len(params) != 2 {
+		return nil, errors.New("invalid contract params")
+	}
+	player := params[0].(common.Address)
+	tokenURI := params[1].(string)
+	return t.contract.Redeem(opts, player, tokenURI)
 }
