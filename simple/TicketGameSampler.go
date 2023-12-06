@@ -18,11 +18,6 @@ type TicketGameSampler struct {
 	contractAddr common.Address
 }
 
-// TicketGameSamplerRedeemMethod is a struct that implements the Method interface.
-type TicketGameSamplerRedeemMethod struct {
-	contract *gen.TicketGame
-}
-
 // SetContract sets the contract address for the TicketGameSampler.
 //
 // contractAddr: the address of the contract to be set.
@@ -77,8 +72,14 @@ func (tgs *TicketGameSampler) MethodMap(conn *ethclient.Client) (map[string]Meth
 	}
 
 	return map[string]Method{
-		"redeem": TicketGameSamplerRedeemMethod{ticker},
+		"redeem":      TicketGameSamplerRedeemMethod{ticker},
+		"batchRedeem": TicketGameSamplerBatchRedeemMethod{ticker},
 	}, nil
+}
+
+// TicketGameSamplerRedeemMethod is a struct that implements the Method interface.
+type TicketGameSamplerRedeemMethod struct {
+	contract *gen.TicketGame
 }
 
 // FormatParams formats the params for the TicketGameSamplerRedeemMethod Go function.
@@ -106,4 +107,45 @@ func (t TicketGameSamplerRedeemMethod) Call(opts *bind.TransactOpts, params ...i
 	player := params[0].(common.Address)
 	tokenURI := params[1].(string)
 	return t.contract.Redeem(opts, player, tokenURI)
+}
+
+// TicketGameSamplerBatchRedeemMethod is a struct that implements the Method interface.
+type TicketGameSamplerBatchRedeemMethod struct {
+	contract *gen.TicketGame
+}
+
+// FormatParams formats the params for the TicketGameSamplerBatchRedeemMethod Go function.
+//
+// It takes in a slice of strings called params and returns a slice of interfaces and an error.
+func (t TicketGameSamplerBatchRedeemMethod) FormatParams(params []string) ([]interface{}, error) {
+	if len(params) != 1 {
+		return nil, errors.New("invalid contract params")
+	}
+
+	player := common.HexToAddress(params[0])
+	tokenURI := "http://redeem.io/"
+
+	batchNum := 100
+	players := make([]common.Address, 0, batchNum)
+	tokenURIs := make([]string, 0, batchNum)
+	for i := 0; i < batchNum; i++ {
+		players = append(players, player)
+		tokenURIs = append(tokenURIs, tokenURI)
+
+	}
+	return []interface{}{players, tokenURIs}, nil
+}
+
+// Call is the implementation of the BindFlags method.
+//
+// Call executes the TicketGameSamplerRedeemMethod contract method.
+// It takes an *bind.TransactOpts and an optional variadic parameter params of type interface{}.
+// It returns a *types.Transaction and an error.
+func (t TicketGameSamplerBatchRedeemMethod) Call(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error) {
+	if len(params) != 2 {
+		return nil, errors.New("invalid contract params")
+	}
+	player := params[0].([]common.Address)
+	tokenURI := params[1].([]string)
+	return t.contract.BatchRedeem(opts, player, tokenURI)
 }

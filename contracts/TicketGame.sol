@@ -21,16 +21,20 @@ contract TicketGame is ERC721URIStorage {
         return tokenId;
     }
 
-    function batchRedeem(address[] memory player, string[] memory tokenURI)
+    function batchRedeem(address[] memory players, string[] memory tokenURIs)
         public
         returns (uint256[] memory tokenIds)
     {
-       require(player.length >0,"player.length must be greater than 0");
-       require(player.length <1000,"player.length must be less than 1000");
-       require(player.length == tokenURI.length,"player.length not equal tokenURI.length");
-       for (uint256 i = 0; i < player.length; i++) {
-           tokenIds[i] = redeem(player[i], tokenURI[i]);
-       }
-       return tokenIds;
+        require(players.length > 0, "players.length must be greater than 0");
+        require(players.length < 1000, "players.length must be less than 1000");
+        require(players.length == tokenURIs.length, "players.length not equal tokenURIs.length");
+
+        // Initialize the tokenIds array with the correct length
+        tokenIds = new uint256[](players.length);
+
+        for (uint256 i = 0; i < players.length; i++) {
+            tokenIds[i] = redeem(players[i], tokenURIs[i]);
+        }
+        return tokenIds;
     }
 }
