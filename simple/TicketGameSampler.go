@@ -13,11 +13,6 @@ import (
 	"github.com/dreamer-zq/turbo-tester/simple/gen"
 )
 
-var (
-	flagContractParams = "contract-method-params"
-	flagContract       = "contract"
-)
-
 // TicketGameSampler is a struct that implements the Sampler interface.
 type TicketGameSampler struct {
 	contractAddr common.Address
