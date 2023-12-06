@@ -22,5 +22,5 @@ type Sampler interface {
 // Method is an interface that defines the Call method.
 type Method interface {
 	FormatParams(params []string) ([]interface{}, error)
-	Call(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error)
+	GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error)
 }

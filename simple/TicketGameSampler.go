@@ -45,7 +45,7 @@ func (tgs *TicketGameSampler) GenTxBuilder(conn *ethclient.Client, method string
 	}
 
 	return func(opts *bind.TransactOpts) (*types.Transaction, error) {
-		return m.Call(opts, p...)
+		return m.GenTx(opts, p...)
 	}, nil
 }
 
@@ -95,12 +95,14 @@ func (t TicketGameSamplerRedeemMethod) FormatParams(params []string) ([]interfac
 	return []interface{}{player, tokenURI}, nil
 }
 
-// Call is the implementation of the BindFlags method.
+// GenTx generates a transaction for redeeming a ticket in the TicketGame contract.
 //
-// Call executes the TicketGameSamplerRedeemMethod contract method.
-// It takes an *bind.TransactOpts and an optional variadic parameter params of type interface{}.
-// It returns a *types.Transaction and an error.
-func (t TicketGameSamplerRedeemMethod) Call(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error) {
+// It takes in the following parameters:
+//   - opts: The transaction options (bind.TransactOpts).
+//   - params: The parameters required for redeeming the ticket.
+//
+// It returns a transaction object (*types.Transaction) and an error object (error).
+func (t TicketGameSamplerRedeemMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error) {
 	if len(params) != 2 {
 		return nil, errors.New("invalid contract params")
 	}
@@ -136,12 +138,14 @@ func (t TicketGameSamplerBatchRedeemMethod) FormatParams(params []string) ([]int
 	return []interface{}{players, tokenURIs}, nil
 }
 
-// Call is the implementation of the BindFlags method.
+// GenTx generates a transaction to redeem tickets in batches for the TicketGameSamplerBatchRedeemMethod contract.
 //
-// Call executes the TicketGameSamplerRedeemMethod contract method.
-// It takes an *bind.TransactOpts and an optional variadic parameter params of type interface{}.
-// It returns a *types.Transaction and an error.
-func (t TicketGameSamplerBatchRedeemMethod) Call(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error) {
+// It takes the following parameters:
+// - opts: The transaction options.
+// - params: A variadic parameter list that represents the player addresses and token URIs.
+//
+// It returns a transaction object and an error.
+func (t TicketGameSamplerBatchRedeemMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error) {
 	if len(params) != 2 {
 		return nil, errors.New("invalid contract params")
 	}
