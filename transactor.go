@@ -9,7 +9,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/olekukonko/tablewriter"
 	"golang.org/x/exp/slog"
 )
@@ -106,12 +108,12 @@ type Transactor struct {
 // It returns a pointer to a Transactor.
 func NewTransactor(eth *ethclient.Client, maxConcurrentNum int, gen *TxGenerator, opts ...TransactorOpts) *Transactor {
 	transactor := &Transactor{
-		eth:   eth,
-		pool:  NewPool(maxConcurrentNum, "transactor"),
-		rs:    &Result{},
-		gen:   gen,
-		batch: make(chan *BatchResult, 100),
-		exit:  make(chan int),
+		eth:      eth,
+		pool:     NewPool(maxConcurrentNum, "transactor"),
+		rs:       &Result{},
+		gen:      gen,
+		batch:    make(chan *BatchResult, 100),
+		exit:     make(chan int),
 		segments: make(map[int64]*Result),
 	}
 	for _, opt := range opts {
@@ -174,7 +176,7 @@ func (t *Transactor) produceTx() {
 func (t *Transactor) consumeTx() {
 	for batch := range t.batch {
 		slog.Info("consume transactions", "batchNo", batch.batchNo)
-		t.batchSendTx(context.Background(), batch)
+		t.sendTx(context.Background(), batch)
 	}
 }
 
@@ -220,22 +222,9 @@ func (t *Transactor) stopConsumer() {
 	}
 }
 
-// BatchSendTx sends a batch of transactions using the provided context and transaction objects.
-func (t *Transactor) batchSendTx(ctx context.Context, batch *BatchResult) {
-	if t.sync {
-		t.batchSendTxBySync(ctx, batch)
-		return
-	}
-
-	for _, payload := range batch.payloads {
-		txCopy := *payload.Tx
-		t.pool.Submit(func() {
-			begin := time.Now()
-			err := t.eth.SendTransaction(ctx, &txCopy)
-			t.Count(batch.batchNo, err, time.Since(begin).Nanoseconds())
-		})
-	}
-	slog.Info("current executed transaction information",
+// sendTx sends a batch of transactions using the provided context and transaction objects.
+func (t *Transactor) sendTx(ctx context.Context, batch *BatchResult) {
+	defer slog.Info("current executed transaction information",
 		"totalBatch", t.totalBatch,
 		"currentBatch", batch.batchNo,
 		"totalTx", t.rs.TotalTxCount.Load(),
@@ -243,25 +232,67 @@ func (t *Transactor) batchSendTx(ctx context.Context, batch *BatchResult) {
 		"startTime", t.rs.StartTime,
 		"pool", t.pool.Stat(),
 	)
-	segmentStat := true
-	if segmentStat {
-		t.pool.Finish()
+	if t.sync {
+		t.sendTxSync(ctx, batch)
+		return
 	}
+
+	if t.segmentStat {
+		t.sendTxSegment(ctx, batch)
+		return
+	}
+
+	t.batchSendTxs(ctx, batch)
 }
 
-func (t *Transactor) batchSendTxBySync(ctx context.Context, batch *BatchResult) {
+func (t *Transactor) sendTxSegment(ctx context.Context, batch *BatchResult) {
+	for _, payload := range batch.payloads {
+		txCopy := *payload.Tx
+		t.pool.Submit(func() {
+			begin := time.Now()
+			err := t.eth.SendTransaction(ctx, &txCopy)
+			t.tally(batch.batchNo, err, time.Since(begin).Nanoseconds())
+		})
+	}
+	t.pool.Finish()
+}
+
+func (t *Transactor) sendTxSync(ctx context.Context, batch *BatchResult) {
 	for _, payload := range batch.payloads {
 		begin := time.Now()
 		err := t.eth.SendTransaction(ctx, payload.Tx)
-		t.Count(batch.batchNo, err, time.Since(begin).Nanoseconds())
+		t.tally(batch.batchNo, err, time.Since(begin).Nanoseconds())
 	}
 }
 
-// Count updates the transaction statistics based on the given error and duration.
+func (t *Transactor) batchSendTxs(ctx context.Context, batch *BatchResult) {
+	elems := make([]rpc.BatchElem, 0, len(batch.payloads))
+	for _, payload := range batch.payloads {
+		data, _ := payload.Tx.MarshalBinary()
+		elems = append(elems, rpc.BatchElem{
+			Method: "eth_sendRawTransaction",
+			Args:   []interface{}{hexutil.Encode(data)},
+			Result: new(string),
+		})
+	}
+	t.pool.Submit(func() {
+		begin := time.Now()
+		err := t.eth.Client().BatchCallContext(ctx, elems)
+		if err != nil {
+			return
+		}
+		took := time.Since(begin).Nanoseconds()
+		for _, elem := range elems {
+			t.tally(batch.batchNo, elem.Error, took)
+		}
+	})
+}
+
+// tally updates the transaction statistics based on the given error and duration.
 //
 // It takes an error as a parameter to determine if the transaction was successful or not.
 // The function also takes an integer value representing the duration of the transaction.
-func (t *Transactor) Count(batchNo int64, err error, took int64) {
+func (t *Transactor) tally(batchNo int64, err error, took int64) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
