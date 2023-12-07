@@ -24,7 +24,7 @@ func NewRootCmd() *cobra.Command {
 		Short: "Turbo tester app command",
 	}
 
-	sampler := &simple.TicketGameSampler{}
+	sampler := &simple.ETicketSampler{}
 
 	rootCmd.AddCommand(DeployCmd(sampler))
 	rootCmd.AddCommand(GentxCmd(sampler))

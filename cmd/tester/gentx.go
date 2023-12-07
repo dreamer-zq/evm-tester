@@ -148,7 +148,7 @@ func addGenTxFlags(cmd *cobra.Command) {
 
 func addSendTxFlags(cmd *cobra.Command) {
 	cmd.Flags().Uint64(flagBatchSize, 10, "number of transactions per batch")
-	cmd.Flags().Bool(flagConcurrent, true, "whether to use concurrent mode,the number of concurrencies is the same as `data-count`")
+	cmd.Flags().Bool(flagConcurrent, false, "whether to use concurrent mode,the number of concurrencies is the same as `data-count`")
 	cmd.Flags().Int(flagMaxThreads, 100, "maximum number of threads")
 	cmd.Flags().String(flagPrivateKey, "", "send the account private key for the transaction")
 	cmd.Flags().Int64(flagNonce, 0, "user's nonce")
