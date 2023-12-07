@@ -16,6 +16,45 @@ import (
 	"golang.org/x/exp/slog"
 )
 
+const (
+	// OneByOne represents sending transactions one by one.
+	OneByOne SendMode = "oneByOne"
+	// Parallel represents sending transactions in parallel.
+	Parallel SendMode = "parallel"
+	// Segment represents sending transactions in segments.
+	Segment SendMode = "segment"
+	// Batch represents sending transactions in batches.
+	Batch SendMode = "batch"
+)
+
+// SendMode represents the mode of sending transactions.
+type SendMode string
+
+// ParseSendMode parses the input string and returns the corresponding SendMode
+// constant if it matches one of the defined modes. Otherwise, it returns an
+// error.
+//
+// Parameters:
+// - mode: The input string to be parsed.
+//
+// Return types:
+// - SendMode: The corresponding SendMode constant.
+// - error: An error if the input string does not match any defined modes.
+func ParseSendMode(mode string) (SendMode, error) {
+	switch mode {
+	case string(OneByOne):
+		return OneByOne, nil
+	case string(Parallel):
+		return Parallel, nil
+	case string(Segment):
+		return Segment, nil
+	case string(Batch):
+		return Batch, nil
+	default:
+		return "", fmt.Errorf("invalid send mode: %s", mode)
+	}
+}
+
 // Result represents the result of a transaction.
 type Result struct {
 	Batch              int64
@@ -69,12 +108,16 @@ func SetTotalBatch(totalBatch int64) TransactorOpts {
 	}
 }
 
-// SetSegmentStat sets the segmentStat field of the TransactorOpts struct.
+// SetSendMode sets the send mode for the TransactorOpts.
 //
-// It takes a boolean value segmentStat as a parameter and returns a TransactorOpts function.
-func SetSegmentStat(segmentStat bool) TransactorOpts {
+// Parameters:
+// - sendMode: the send mode to be set.
+//
+// Returns:
+// - a function that sets the send mode and returns the Transactor.
+func SetSendMode(sendMode SendMode) TransactorOpts {
 	return func(t *Transactor) *Transactor {
-		t.segmentStat = segmentStat
+		t.sendMode = sendMode
 		return t
 	}
 }
@@ -93,9 +136,9 @@ type Transactor struct {
 	batch      chan *BatchResult
 	mu         sync.Mutex
 
-	segmentStat bool
-	rs          *Result
-	segments    map[int64]*Result
+	sendMode SendMode
+	rs       *Result
+	segments map[int64]*Result
 
 	producerExit atomic.Bool
 
@@ -232,17 +275,31 @@ func (t *Transactor) sendTx(ctx context.Context, batch *BatchResult) {
 		"startTime", t.rs.StartTime,
 		"pool", t.pool.Stat(),
 	)
-	if t.sync {
+	switch t.sendMode {
+	case OneByOne:
 		t.sendTxSync(ctx, batch)
-		return
-	}
-
-	if t.segmentStat {
+		break
+	case Segment:
 		t.sendTxSegment(ctx, batch)
-		return
+		break
+	case Parallel:
+		t.sendTxParallel(ctx, batch)
+		break
+	case Batch:
+		t.batchSendTxs(ctx, batch)
+		break
 	}
+}
 
-	t.batchSendTxs(ctx, batch)
+func (t *Transactor) sendTxParallel(ctx context.Context, batch *BatchResult) {
+	for _, payload := range batch.payloads {
+		txCopy := *payload.Tx
+		t.pool.Submit(func() {
+			begin := time.Now()
+			err := t.eth.SendTransaction(ctx, &txCopy)
+			t.tally(batch.batchNo, err, time.Since(begin).Nanoseconds())
+		})
+	}
 }
 
 func (t *Transactor) sendTxSegment(ctx context.Context, batch *BatchResult) {
@@ -320,7 +377,7 @@ func (t *Transactor) tally(batchNo int64, err error, took int64) {
 	// totalTxs is a counter that keeps track of the total number of transactions sent
 	count(t.rs, err, took)
 	// segmented statistics of the results of each batch
-	if t.totalBatch > 1 && t.segmentStat {
+	if t.totalBatch > 1 && t.sendMode == Segment {
 		rs, ok := t.segments[batchNo]
 		if !ok {
 			rs = &Result{}
@@ -347,7 +404,7 @@ func (t *Transactor) printResult() {
 		}
 		return row
 	}
-	if t.totalBatch > 1 && t.segmentStat {
+	if t.totalBatch > 1 && t.sendMode == Segment {
 		fmt.Println("Output segmented statistics:")
 
 		table := tablewriter.NewWriter(os.Stdout)

@@ -15,6 +15,7 @@ var (
 	flagRunPeriod  = "run-period"
 	flagUserNum    = "run-user-num"
 	flagSegment    = "run-segment"
+	flagSendMode   = "send-mode"
 )
 
 // StartCmd generates a cobra command for sending transaction.
@@ -38,7 +39,7 @@ func StartCmd(sampler simple.Sampler) *cobra.Command {
 				return err
 			}
 
-			tg, err := getGenerator(conf, cmd,sampler)
+			tg, err := getGenerator(conf, cmd, sampler)
 			if err != nil {
 				return err
 			}
@@ -53,7 +54,11 @@ func StartCmd(sampler simple.Sampler) *cobra.Command {
 				return err
 			}
 
-			segment, err := cmd.Flags().GetBool(flagSegment)
+			sendModeStr, err := cmd.Flags().GetString(flagSendMode)
+			if err != nil {
+				return err
+			}
+			sendMode, err := tester.ParseSendMode(sendModeStr)
 			if err != nil {
 				return err
 			}
@@ -80,7 +85,7 @@ func StartCmd(sampler simple.Sampler) *cobra.Command {
 				tester.SetTotalBatch(totalBatch),
 				tester.SetSync(sync),
 				tester.SetEndTime(endTime),
-				tester.SetSegmentStat(segment),
+				tester.SetSendMode(sendMode),
 			)
 			transactor.Run()
 			return nil
@@ -92,5 +97,6 @@ func StartCmd(sampler simple.Sampler) *cobra.Command {
 	cmd.Flags().Bool(flagSync, false, "whether transaction execution is in synchronous mode")
 	cmd.Flags().Bool(flagSegment, false, "whether to enable segmented statistics requires run-total-batch to be greater than 1")
 	cmd.Flags().Int64(flagTotalBatch, 0, "total production batches, and `--run-period`, choose one of the two,`totalTxs = totalBatch * count`")
+	cmd.Flags().String(flagSendMode, "parallel", "transaction sending mode, `oneByOne`,`parallel` ,`segment` or `batch`")
 	return cmd
 }
