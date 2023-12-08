@@ -277,21 +277,21 @@ func (t *Transactor) sendTx(ctx context.Context, batch *BatchResult) {
 	)
 	switch t.sendMode {
 	case OneByOne:
-		t.sendTxSync(ctx, batch)
+		t.sendTxsSync(ctx, batch)
 		break
 	case Segment:
-		t.sendTxSegment(ctx, batch)
+		t.sendTxsSegment(ctx, batch)
 		break
 	case Parallel:
-		t.sendTxParallel(ctx, batch)
+		t.sendTxsParallel(ctx, batch)
 		break
 	case Batch:
-		t.batchSendTxs(ctx, batch)
+		t.sendTxsBatch(ctx, batch)
 		break
 	}
 }
 
-func (t *Transactor) sendTxParallel(ctx context.Context, batch *BatchResult) {
+func (t *Transactor) sendTxsParallel(ctx context.Context, batch *BatchResult) {
 	for _, payload := range batch.payloads {
 		txCopy := *payload.Tx
 		t.pool.Submit(func() {
@@ -302,7 +302,7 @@ func (t *Transactor) sendTxParallel(ctx context.Context, batch *BatchResult) {
 	}
 }
 
-func (t *Transactor) sendTxSegment(ctx context.Context, batch *BatchResult) {
+func (t *Transactor) sendTxsSegment(ctx context.Context, batch *BatchResult) {
 	for _, payload := range batch.payloads {
 		txCopy := *payload.Tx
 		t.pool.Submit(func() {
@@ -314,7 +314,7 @@ func (t *Transactor) sendTxSegment(ctx context.Context, batch *BatchResult) {
 	t.pool.Finish()
 }
 
-func (t *Transactor) sendTxSync(ctx context.Context, batch *BatchResult) {
+func (t *Transactor) sendTxsSync(ctx context.Context, batch *BatchResult) {
 	for _, payload := range batch.payloads {
 		begin := time.Now()
 		err := t.eth.SendTransaction(ctx, payload.Tx)
@@ -322,7 +322,7 @@ func (t *Transactor) sendTxSync(ctx context.Context, batch *BatchResult) {
 	}
 }
 
-func (t *Transactor) batchSendTxs(ctx context.Context, batch *BatchResult) {
+func (t *Transactor) sendTxsBatch(ctx context.Context, batch *BatchResult) {
 	elems := make([]rpc.BatchElem, 0, len(batch.payloads))
 	for _, payload := range batch.payloads {
 		data, _ := payload.Tx.MarshalBinary()

@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"context"
 	"math/big"
+	"strconv"
 
 	"github.com/dreamer-zq/turbo-tester/simple"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
@@ -51,18 +54,19 @@ func loadGlobalFlags(cmd *cobra.Command) (*GlobalConnfig, error) {
 		return nil, err
 	}
 
-	client, err := ethclient.Dial(url)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to connect to the Ethereum client")
-	}
-
 	chainIDInt, err := cmd.Flags().GetInt64(flagChainID)
 	if err != nil {
 		return nil, err
 	}
+
+	rpcClient, err := rpc.DialOptions(context.Background(), url, rpc.WithHeader("X-Chain", strconv.FormatInt(chainIDInt, 10)))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to connect to the Ethereum client")
+	}
+
 	return &GlobalConnfig{
 		chainID: big.NewInt(chainIDInt),
 		url:     url,
-		client:  client,
+		client:  ethclient.NewClient(rpcClient),
 	}, nil
 }
