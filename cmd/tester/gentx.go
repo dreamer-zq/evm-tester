@@ -29,12 +29,12 @@ var (
 //
 // The command generates test data and outputs it to a CSV file.
 // It takes no parameters and returns a pointer to a cobra.Command.
-func GentxCmd(sampler simple.Sampler) *cobra.Command {
+func GentxCmd(manager *simple.Manager) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "gentx",
 		Short: "Generate test data and output to cvs file",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			conf, err := loadGlobalFlags(cmd)
+			conf, err := loadGlobalFlags(cmd, manager)
 			if err != nil {
 				return err
 			}
@@ -44,7 +44,7 @@ func GentxCmd(sampler simple.Sampler) *cobra.Command {
 				return err
 			}
 
-			tg, err := getGenerator(conf, cmd, sampler)
+			tg, err := getGenerator(conf, cmd)
 			if err != nil {
 				return err
 			}
@@ -61,7 +61,7 @@ func GentxCmd(sampler simple.Sampler) *cobra.Command {
 	return cmd
 }
 
-func getGenerator(conf *GlobalConnfig, cmd *cobra.Command, sampler simple.Sampler) (*tester.TxGenerator, error) {
+func getGenerator(conf *GlobalConnfig, cmd *cobra.Command) (*tester.TxGenerator, error) {
 	count, err := cmd.Flags().GetUint64(flagBatchSize)
 	if err != nil {
 		return nil, err
@@ -125,9 +125,10 @@ func getGenerator(conf *GlobalConnfig, cmd *cobra.Command, sampler simple.Sample
 		return nil, err
 	}
 	contractAddr := common.HexToAddress(contractAddrStr)
-	sampler.SetContract(contractAddr)
 
-	txBuilrder, err := sampler.GenTxBuilder(conf.client, method, contractParams)
+	conf.simpler.SetContract(contractAddr)
+
+	txBuilrder, err := conf.simpler.GenTxBuilder(conf.client, method, contractParams)
 	if err != nil {
 		return nil, err
 	}

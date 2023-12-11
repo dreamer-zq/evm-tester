@@ -23,4 +23,5 @@ type Sampler interface {
 type Method interface {
 	FormatParams(params []string) ([]interface{}, error)
 	GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error)
+	Display() string
 }

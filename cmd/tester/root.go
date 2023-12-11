@@ -15,6 +15,7 @@ import (
 var (
 	flagURL     = "url"
 	flagChainID = "chain-id"
+	flagSimpler = "simpler"
 )
 
 // NewRootCmd returns a new instance of the cobra.Command struct.
@@ -27,16 +28,9 @@ func NewRootCmd() *cobra.Command {
 		Short: "Turbo tester app command",
 	}
 
-	sampler := &simple.ETicketSampler{}
-
-	rootCmd.AddCommand(DeployCmd(sampler))
-	rootCmd.AddCommand(GentxCmd(sampler))
-	rootCmd.AddCommand(StartCmd(sampler))
-
-	rootCmd.PersistentFlags().String(flagURL, "", "turbo endpoint url")
-	rootCmd.PersistentFlags().Int64(flagChainID, 0, "turbo chain-id")
-	rootCmd.MarkFlagRequired(flagURL)
-	rootCmd.MarkFlagRequired(flagChainID)
+	manager := simple.NewManager()
+	rootCmd.AddCommand(ListCmd(manager))
+	rootCmd.AddCommand(NewContractCmd())
 	return rootCmd
 }
 
@@ -45,11 +39,17 @@ type GlobalConnfig struct {
 	chainID *big.Int
 	url     string
 
-	client *ethclient.Client
+	simpler simple.Sampler
+	client  *ethclient.Client
 }
 
-func loadGlobalFlags(cmd *cobra.Command) (*GlobalConnfig, error) {
+func loadGlobalFlags(cmd *cobra.Command, manager *simple.Manager) (*GlobalConnfig, error) {
 	url, err := cmd.Flags().GetString(flagURL)
+	if err != nil {
+		return nil, err
+	}
+
+	simplerName, err := cmd.Flags().GetString(flagSimpler)
 	if err != nil {
 		return nil, err
 	}
@@ -68,5 +68,6 @@ func loadGlobalFlags(cmd *cobra.Command) (*GlobalConnfig, error) {
 		chainID: big.NewInt(chainIDInt),
 		url:     url,
 		client:  ethclient.NewClient(rpcClient),
+		simpler: manager.GetSampler(simplerName),
 	}, nil
 }

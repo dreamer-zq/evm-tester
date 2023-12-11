@@ -29,17 +29,17 @@ var (
 // - Retrieves the generator from the command.
 // - Runs the generator with the contract address.
 // Returns the generated cobra command.
-func StartCmd(sampler simple.Sampler) *cobra.Command {
+func StartCmd(manager *simple.Manager) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Generate test data and output to cvs file",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			conf, err := loadGlobalFlags(cmd)
+			conf, err := loadGlobalFlags(cmd, manager)
 			if err != nil {
 				return err
 			}
 
-			tg, err := getGenerator(conf, cmd, sampler)
+			tg, err := getGenerator(conf, cmd)
 			if err != nil {
 				return err
 			}

@@ -17,12 +17,12 @@ import (
 //
 // No parameters.
 // Returns a pointer to a `cobra.Command` struct.
-func DeployCmd(sampler simple.Sampler) *cobra.Command {
+func DeployCmd(manager *simple.Manager) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "deploy",
 		Short: "Deploy a contract",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			conf, err := loadGlobalFlags(cmd)
+			conf, err := loadGlobalFlags(cmd, manager)
 			if err != nil {
 				return err
 			}
@@ -34,7 +34,7 @@ func DeployCmd(sampler simple.Sampler) *cobra.Command {
 				return errors.Wrap(err, "failed to create authorized transactor")
 			}
 
-			contractAddr, err := sampler.DeployContract(cmd, auth, conf.client)
+			contractAddr, err := conf.simpler.DeployContract(cmd, auth, conf.client)
 			if err != nil {
 				return errors.Wrap(err, "failed to deploy contract")
 			}

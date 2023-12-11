@@ -111,6 +111,14 @@ func (t TicketGameSamplerRedeemMethod) GenTx(opts *bind.TransactOpts, params ...
 	return t.contract.Redeem(opts, player, tokenURI)
 }
 
+// Display returns the string representation of the TicketGameSamplerRedeemMethod.
+//
+// No parameters.
+// Returns a string.
+func (t TicketGameSamplerRedeemMethod) Display() string {
+	return "redeem(address player, string memory tokenURI)"
+}
+
 // TicketGameSamplerBatchRedeemMethod is a struct that implements the Method interface.
 type TicketGameSamplerBatchRedeemMethod struct {
 	contract *gen.TicketGame
@@ -152,4 +160,12 @@ func (t TicketGameSamplerBatchRedeemMethod) GenTx(opts *bind.TransactOpts, param
 	player := params[0].([]common.Address)
 	tokenURI := params[1].([]string)
 	return t.contract.BatchRedeem(opts, player, tokenURI)
+}
+
+// Display returns the string representation of the TicketGameSamplerBatchRedeemMethod.
+//
+// It does not take any parameters.
+// It returns a string.
+func (t TicketGameSamplerBatchRedeemMethod) Display() string {
+	return "batchRedeem(address[] memory players, string[] memory tokenURIs)"
 }

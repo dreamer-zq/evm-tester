@@ -265,6 +265,7 @@ func (tg *TxGenerator) BatchGenTxs(sender *ecdsa.PrivateKey, senderNonce *big.In
 		senderNonce.Add(senderNonce, big.NewInt(1))
 	}
 	tg.pool.Close()
+	tg.nonce = senderNonce.Int64() // Update the nonce value
 	return txs, nil
 }
 

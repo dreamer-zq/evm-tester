@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -176,9 +178,15 @@ func (t *Transactor) Run() {
 	go t.produceTx()
 	go t.consumeTx()
 
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	
 	select {
 	case <-t.exit:
 		t.pool.Close()
+		t.printResult()
+		return
+	case <- sigs: // wait for sigs to quit exit
 		t.printResult()
 		return
 	}
