@@ -126,9 +126,9 @@ func getGenerator(conf *GlobalConnfig, cmd *cobra.Command) (*tester.TxGenerator,
 	}
 	contractAddr := common.HexToAddress(contractAddrStr)
 
-	conf.simpler.SetContract(contractAddr)
+	conf.contract.SetContractAddr(contractAddr)
 
-	txBuilrder, err := conf.simpler.GenTxBuilder(conf.client, method, contractParams)
+	txBuilrder, err := conf.contract.GenTxBuilder(conf.client, method, contractParams)
 	if err != nil {
 		return nil, err
 	}

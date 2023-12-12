@@ -2,14 +2,14 @@ package simple
 
 // Manager is a struct that manages a map of samplers.
 type Manager struct {
-	ms map[string]Sampler
+	ms map[string]Contract
 }
 
 // NewManager creates a new Manager.
 //
 // It returns a pointer to a Manager struct.
 func NewManager() *Manager {
-	ms := make(map[string]Sampler)
+	ms := make(map[string]Contract)
 	ms["eTicket"] = &ETicketSampler{}
 	ms["ticket"] = &TicketGameSampler{}
 	return &Manager{
@@ -17,24 +17,22 @@ func NewManager() *Manager {
 	}
 }
 
-// ListSamplers lists all the samplers in the Manager.
+// ListContracts lists all the samplers in the Manager.
 //
 // It returns a slice of strings, containing the names of the samplers.
-func (m *Manager) ListSamplers() (names []string) {
+func (m *Manager) ListContracts() (names []string) {
 	for name := range m.ms {
 		names = append(names, name)
 	}
 	return
 }
 
-// GetSampler returns the sampler with the given name.
+
+// GetContract returns the Contract with the given name.
 //
-// Parameters:
-// - name: the name of the sampler to retrieve.
-//
-// Return type:
-// - Sampler: the requested sampler.
-func (m *Manager) GetSampler(name string) Sampler {
+// It takes a string parameter called name which is the name of the Contract to retrieve.
+// It returns a Contract.
+func (m *Manager) GetContract(name string) Contract {
 	sampler, ok := m.ms[name]
 	if !ok {
 		panic("invalid sampler name")

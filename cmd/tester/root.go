@@ -15,7 +15,7 @@ import (
 var (
 	flagURL     = "url"
 	flagChainID = "chain-id"
-	flagSimpler = "simpler"
+	flagName    = "name"
 )
 
 // NewRootCmd returns a new instance of the cobra.Command struct.
@@ -39,8 +39,8 @@ type GlobalConnfig struct {
 	chainID *big.Int
 	url     string
 
-	simpler simple.Sampler
-	client  *ethclient.Client
+	contract simple.Contract
+	client   *ethclient.Client
 }
 
 func loadGlobalFlags(cmd *cobra.Command, manager *simple.Manager) (*GlobalConnfig, error) {
@@ -49,7 +49,7 @@ func loadGlobalFlags(cmd *cobra.Command, manager *simple.Manager) (*GlobalConnfi
 		return nil, err
 	}
 
-	simplerName, err := cmd.Flags().GetString(flagSimpler)
+	contractName, err := cmd.Flags().GetString(flagName)
 	if err != nil {
 		return nil, err
 	}
@@ -65,9 +65,9 @@ func loadGlobalFlags(cmd *cobra.Command, manager *simple.Manager) (*GlobalConnfi
 	}
 
 	return &GlobalConnfig{
-		chainID: big.NewInt(chainIDInt),
-		url:     url,
-		client:  ethclient.NewClient(rpcClient),
-		simpler: manager.GetSampler(simplerName),
+		chainID:  big.NewInt(chainIDInt),
+		url:      url,
+		client:   ethclient.NewClient(rpcClient),
+		contract: manager.GetContract(contractName),
 	}, nil
 }

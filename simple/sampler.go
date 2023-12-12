@@ -10,11 +10,11 @@ import (
 	tester "github.com/dreamer-zq/turbo-tester"
 )
 
-// Sampler is an interface that defines the GenTxBuilder method.
-type Sampler interface {
-	DeployContract(cmd *cobra.Command, auth *bind.TransactOpts, backend bind.ContractBackend) (common.Address, error)
+// Contract is an interface that defines the GenTxBuilder method.
+type Contract interface {
+	Deploy(cmd *cobra.Command, auth *bind.TransactOpts, backend bind.ContractBackend) (common.Address, error)
 
-	SetContract(contractAddr common.Address)
+	SetContractAddr(contractAddr common.Address)
 	GenTxBuilder(conn *ethclient.Client, method string, params []string) (tester.CreateTx, error)
 	MethodMap(conn *ethclient.Client) (map[string]Method, error)
 }

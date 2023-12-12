@@ -18,7 +18,7 @@ func ListCmd(manager *simple.Manager) *cobra.Command {
 		Use:   "list",
 		Short: "List all contracts",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println(strings.Join(manager.ListSamplers(), ","))
+			fmt.Println(strings.Join(manager.ListContracts(), ","))
 			return nil
 		},
 	}

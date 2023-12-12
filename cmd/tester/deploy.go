@@ -34,7 +34,7 @@ func DeployCmd(manager *simple.Manager) *cobra.Command {
 				return errors.Wrap(err, "failed to create authorized transactor")
 			}
 
-			contractAddr, err := conf.simpler.DeployContract(cmd, auth, conf.client)
+			contractAddr, err := conf.contract.Deploy(cmd, auth, conf.client)
 			if err != nil {
 				return errors.Wrap(err, "failed to deploy contract")
 			}

@@ -25,7 +25,7 @@ func NewContractCmd() *cobra.Command {
 	contractCmd.AddCommand(StartCmd(manager))
 
 	contractCmd.PersistentFlags().String(flagURL, "", "turbo endpoint url")
-	contractCmd.PersistentFlags().String(flagSimpler, "eTicket", "simpler name")
+	contractCmd.PersistentFlags().String(flagName, "eTicket", "contract name")
 	contractCmd.PersistentFlags().Int64(flagChainID, 0, "turbo chain-id")
 	contractCmd.MarkFlagRequired(flagURL)
 	contractCmd.MarkFlagRequired(flagChainID)
@@ -48,7 +48,7 @@ func MethodsCmd(manager *simple.Manager) *cobra.Command {
 				return err
 			}
 
-			m, err := conf.simpler.MethodMap(conf.client)
+			m, err := conf.contract.MethodMap(conf.client)
 			if err != nil {
 				return err
 			}

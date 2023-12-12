@@ -18,10 +18,10 @@ type TicketGameSampler struct {
 	contractAddr common.Address
 }
 
-// SetContract sets the contract address for the TicketGameSampler.
+// SetContractAddr sets the contract address for the TicketGameSampler.
 //
 // contractAddr: the address of the contract to be set.
-func (tgs *TicketGameSampler) SetContract(contractAddr common.Address) {
+func (tgs *TicketGameSampler) SetContractAddr(contractAddr common.Address) {
 	tgs.contractAddr = contractAddr
 }
 
@@ -49,11 +49,11 @@ func (tgs *TicketGameSampler) GenTxBuilder(conn *ethclient.Client, method string
 	}, nil
 }
 
-// DeployContract deploys the TicketGame contract.
+// Deploy deploys the TicketGame contract.
 //
 // It takes an authenticated transaction options and a contract backend as parameters.
 // It returns the address of the deployed contract and an error if the deployment fails.
-func (tgs *TicketGameSampler) DeployContract(_ *cobra.Command, auth *bind.TransactOpts, backend bind.ContractBackend) (common.Address, error) {
+func (tgs *TicketGameSampler) Deploy(_ *cobra.Command, auth *bind.TransactOpts, backend bind.ContractBackend) (common.Address, error) {
 	contractAddr, _, _, err := gen.DeployTicketGame(auth, backend)
 	if err != nil {
 		return common.Address{}, errors.Wrap(err, "failed to deploy contract")
