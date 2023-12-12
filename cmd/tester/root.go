@@ -15,7 +15,7 @@ import (
 var (
 	flagURL     = "url"
 	flagChainID = "chain-id"
-	flagName    = "name"
+	flagName    = "contract-name"
 )
 
 // NewRootCmd returns a new instance of the cobra.Command struct.

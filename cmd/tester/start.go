@@ -32,7 +32,7 @@ var (
 func StartCmd(manager *simple.Manager) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start",
-		Short: "Generate test data and output to cvs file",
+		Short: "Generate test data and send to the blockchain",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			conf, err := loadGlobalFlags(cmd, manager)
 			if err != nil {

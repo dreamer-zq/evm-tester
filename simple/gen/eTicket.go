@@ -836,7 +836,7 @@ func (_ETicket *ETicketTransactorSession) SafeTransferFrom(from common.Address, 
 // SafeTransferFrom0 is a paid mutator transaction binding the contract method 0xb88d4fde.
 //
 // Solidity: function safeTransferFrom(address from, address to, uint256 tokenId, bytes _data) payable returns()
-func (_ETicket *ETicketTransactor) SafeTransferFrom0(opts *bind.TransactOpts, from common.Address, to common.Address, tokenId *big.Int, _data []byte) (*types.Transaction, error) {
+ func (_ETicket *ETicketTransactor) SafeTransferFrom0(opts *bind.TransactOpts, from common.Address, to common.Address, tokenId *big.Int, _data []byte) (*types.Transaction, error) {
 	return _ETicket.contract.Transact(opts, "safeTransferFrom0", from, to, tokenId, _data)
 }
 
