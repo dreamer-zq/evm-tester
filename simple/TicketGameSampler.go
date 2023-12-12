@@ -3,6 +3,7 @@ package simple
 import (
 	"github.com/pkg/errors"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -71,15 +72,21 @@ func (tgs *TicketGameSampler) MethodMap(conn *ethclient.Client) (map[string]Meth
 		return nil, err
 	}
 
+	abi, err := gen.TicketGameMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+
 	return map[string]Method{
-		"redeem":      TicketGameSamplerRedeemMethod{ticker},
-		"batchRedeem": TicketGameSamplerBatchRedeemMethod{ticker},
+		"redeem":      TicketGameSamplerRedeemMethod{ticker,abi},
+		"batchRedeem": TicketGameSamplerBatchRedeemMethod{ticker,abi},
 	}, nil
 }
 
 // TicketGameSamplerRedeemMethod is a struct that implements the Method interface.
 type TicketGameSamplerRedeemMethod struct {
 	contract *gen.TicketGame
+	abi      *abi.ABI
 }
 
 // FormatParams formats the params for the TicketGameSamplerRedeemMethod Go function.
@@ -116,12 +123,13 @@ func (t TicketGameSamplerRedeemMethod) GenTx(opts *bind.TransactOpts, params ...
 // No parameters.
 // Returns a string.
 func (t TicketGameSamplerRedeemMethod) Display() string {
-	return "redeem(address player, string memory tokenURI)"
+	return t.abi.Methods["redeem"].String()
 }
 
 // TicketGameSamplerBatchRedeemMethod is a struct that implements the Method interface.
 type TicketGameSamplerBatchRedeemMethod struct {
 	contract *gen.TicketGame
+	abi      *abi.ABI
 }
 
 // FormatParams formats the params for the TicketGameSamplerBatchRedeemMethod Go function.
@@ -167,5 +175,5 @@ func (t TicketGameSamplerBatchRedeemMethod) GenTx(opts *bind.TransactOpts, param
 // It does not take any parameters.
 // It returns a string.
 func (t TicketGameSamplerBatchRedeemMethod) Display() string {
-	return "batchRedeem(address[] memory players, string[] memory tokenURIs)"
+	return t.abi.Methods["batchRedeem"].String()
 }

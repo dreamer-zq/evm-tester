@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -73,16 +74,22 @@ func (tgs *ETicketSampler) MethodMap(conn *ethclient.Client) (map[string]Method,
 		return nil, err
 	}
 
+	abi, err := gen.ETicketMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+
 	return map[string]Method{
-		"mint":          ETicketSamplerMintMethod{ticker},
-		"transfer":      ETicketSamplerTranferMethod{ticker},
-		"batchTransfer": ETicketSamplerBatchTranferMethod{ticker},
+		"mint":             ETicketSamplerMintMethod{ticker, abi},
+		"safeTransferFrom": ETicketSamplerTranferMethod{ticker, abi},
+		"batchTransfer":    ETicketSamplerBatchTranferMethod{ticker, abi},
 	}, nil
 }
 
 // ETicketSamplerMintMethod is a struct that implements the Method interface.
 type ETicketSamplerMintMethod struct {
 	contract *gen.ETicket
+	abi      *abi.ABI
 }
 
 // FormatParams formats the params for the ETicketSamplerMintMethod Go function.
@@ -120,12 +127,13 @@ func (t ETicketSamplerMintMethod) GenTx(opts *bind.TransactOpts, params ...inter
 // It does not take any parameters.
 // It returns a string.
 func (t ETicketSamplerMintMethod) Display() string {
-	return "mint(address _to, uint256 quantity)"
+	return t.abi.Methods["mint"].String()
 }
 
 // ETicketSamplerTranferMethod is a struct that implements the Method interface.
 type ETicketSamplerTranferMethod struct {
 	contract *gen.ETicket
+	abi      *abi.ABI
 }
 
 // FormatParams formats the params for the ETicketSamplerTranferMethod Go function.
@@ -163,12 +171,13 @@ func (t ETicketSamplerTranferMethod) GenTx(opts *bind.TransactOpts, params ...in
 // No parameters.
 // Returns a string.
 func (t ETicketSamplerTranferMethod) Display() string {
-	return "transfer(address from,address to,uint256 tokenId)"
+	return t.abi.Methods["safeTransferFrom"].String()
 }
 
 // ETicketSamplerBatchTranferMethod is a struct that implements the Method interface.
 type ETicketSamplerBatchTranferMethod struct {
 	contract *gen.ETicket
+	abi      *abi.ABI
 }
 
 // FormatParams formats the parameters for the ETicketSamplerBatchTranferMethod Go function.
@@ -216,5 +225,5 @@ func (t ETicketSamplerBatchTranferMethod) GenTx(opts *bind.TransactOpts, params 
 // No parameters.
 // Returns a string.
 func (t ETicketSamplerBatchTranferMethod) Display() string {
-	return "batchTransfer(address[] calldata _to,uint256[] calldata _ids)"
+	return t.abi.Methods["batchTransfer"].String()
 }
