@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/spf13/cobra"
 
 	tester "github.com/dreamer-zq/turbo-tester"
 	"github.com/dreamer-zq/turbo-tester/simple/gen"
@@ -54,7 +53,7 @@ func (tgs *TicketGameSampler) GenTxBuilder(conn *ethclient.Client, method string
 //
 // It takes an authenticated transaction options and a contract backend as parameters.
 // It returns the address of the deployed contract and an error if the deployment fails.
-func (tgs *TicketGameSampler) Deploy(_ *cobra.Command, auth *bind.TransactOpts, backend bind.ContractBackend) (common.Address, error) {
+func (tgs *TicketGameSampler) Deploy(auth *bind.TransactOpts, backend bind.ContractBackend, params []string) (common.Address, error) {
 	contractAddr, _, _, err := gen.DeployTicketGame(auth, backend)
 	if err != nil {
 		return common.Address{}, errors.Wrap(err, "failed to deploy contract")

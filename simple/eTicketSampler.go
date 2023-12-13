@@ -1,6 +1,8 @@
 package simple
 
 import (
+	"encoding/hex"
+	"fmt"
 	"math/big"
 	"strings"
 
@@ -10,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 
 	tester "github.com/dreamer-zq/turbo-tester"
 	"github.com/dreamer-zq/turbo-tester/simple/gen"
@@ -56,8 +57,23 @@ func (tgs *ETicketSampler) GenTxBuilder(conn *ethclient.Client, method string, p
 //
 // It takes an authenticated transaction options and a contract backend as parameters.
 // It returns the address of the deployed contract and an error if the deployment fails.
-func (tgs *ETicketSampler) Deploy(_ *cobra.Command, auth *bind.TransactOpts, backend bind.ContractBackend) (common.Address, error) {
-	contractAddr, _, _, err := gen.DeployETicket(auth, backend)
+func (tgs *ETicketSampler) Deploy(auth *bind.TransactOpts, backend bind.ContractBackend, params []string) (common.Address, error) {
+	if len(params) != 4 {
+		return common.Address{}, errors.New("invalid params")
+	}
+	infos := strings.Split(params[0], "|")
+	rights := strings.Split(params[1], "|")
+	totalSupply, ok := new(big.Int).SetString(params[2], 10)
+	if !ok {
+		return common.Address{}, errors.New("invalid contract params totalSupply")
+	}
+	
+	validTime, ok := new(big.Int).SetString(params[3], 10)
+	if !ok {
+		return common.Address{}, errors.New("invalid contract params validTime")
+	}
+	fmt.Println(infos,rights,totalSupply.Uint64(), validTime.Uint64())
+	contractAddr, _, _, err := gen.DeployETicket(auth, backend, infos, rights, totalSupply, validTime)
 	if err != nil {
 		return common.Address{}, errors.Wrap(err, "failed to deploy contract")
 	}
@@ -82,7 +98,7 @@ func (tgs *ETicketSampler) MethodMap(conn *ethclient.Client) (map[string]Method,
 	return map[string]Method{
 		"mint":             ETicketSamplerMintMethod{ticker, abi},
 		"safeTransferFrom": ETicketSamplerTranferMethod{ticker, abi},
-		"batchTransfer":    ETicketSamplerBatchTranferMethod{ticker, abi},
+		"multicall":        ETicketSamplerMulticallMethod{ticker, abi},
 	}, nil
 }
 
@@ -174,56 +190,68 @@ func (t ETicketSamplerTranferMethod) Display() string {
 	return t.abi.Methods["safeTransferFrom"].String()
 }
 
-// ETicketSamplerBatchTranferMethod is a struct that implements the Method interface.
-type ETicketSamplerBatchTranferMethod struct {
+// ETicketSamplerMulticallMethod is a struct that implements the Method interface.
+type ETicketSamplerMulticallMethod struct {
 	contract *gen.ETicket
 	abi      *abi.ABI
 }
 
-// FormatParams formats the parameters for the ETicketSamplerBatchTranferMethod Go function.
+// FormatParams is a function that takes in a slice of strings and returns a slice of interfaces and an error.
 //
-// It takes in a slice of strings, params, and returns a slice of interfaces{} and an error.
-func (t ETicketSamplerBatchTranferMethod) FormatParams(params []string) ([]interface{}, error) {
-	if len(params) != 2 {
+// It formats the provided parameters and returns them in the desired format.
+//
+// Params:
+// - params: a slice of strings representing the parameters to be formatted.
+//
+// Returns:
+// - []interface{}: a slice of interfaces representing the formatted parameters.
+// - error: an error indicating any issues that occurred during the formatting process.
+func (t ETicketSamplerMulticallMethod) FormatParams(params []string) ([]interface{}, error) {
+	if len(params) == 0 {
 		return nil, errors.New("invalid contract params")
 	}
-	tos := strings.Split(params[0], "|")
-	ids := strings.Split(params[1], "|")
 
-	toAddrs := make([]common.Address, 0, len(tos))
-	for _, to := range tos {
-		toAddrs = append(toAddrs, common.HexToAddress(to))
-	}
-
-	tokenIds := make([]*big.Int, 0, len(ids))
-	for _, id := range ids {
-		idInt, ok := new(big.Int).SetString(id, 10)
+	var datas [][]byte
+	switch params[0] {
+	case "mint":
+		to := common.HexToAddress(params[1])
+		tokenIDFrom, ok := new(big.Int).SetString(params[2], 10)
 		if !ok {
-			return nil, errors.New("invalid contract params tokenID")
+			return nil, errors.New("invalid contract params tokenIdFrom")
 		}
-		tokenIds = append(tokenIds, idInt)
+		tokenIDTo, ok := new(big.Int).SetString(params[3], 10)
+		if !ok {
+			return nil, errors.New("invalid contract params tokenIdTo")
+		}
+
+		for i := tokenIDFrom; i.Cmp(tokenIDTo) <= 0; i.Add(i, big.NewInt(1)) {
+			data, err := t.abi.Pack("mint", to, i)
+			if err != nil {
+				return nil, err
+			}
+			fmt.Println(hex.EncodeToString(data))
+			datas = append(datas, data)
+		}
 	}
-	return []interface{}{tos, tokenIds}, nil
+	return []interface{}{datas}, nil
 }
 
-// GenTx generates a transaction for the ETicketSamplerTranferMethod Go function.
+// GenTx generates a transaction for the ETicketSamplerMulticallMethod.
 //
-// It takes in the following parameter(s):
-// - opts: a *bind.TransactOpts object representing the transaction options.
-// - params: a variadic parameter that can take in any number of arguments.
-//
-// It returns a *types.Transaction object and an error.
-func (t ETicketSamplerBatchTranferMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error) {
-	if len(params) != 3 {
+// opts: The transaction options.
+// params: The parameters for the transaction.
+// returns: The generated transaction and any error that occurred.
+func (t ETicketSamplerMulticallMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error) {
+	if len(params) != 1 {
 		return nil, errors.New("invalid contract params")
 	}
-	return t.contract.BatchTransfer(opts, params[0].([]common.Address), params[1].([]*big.Int))
+	return t.contract.Multicall(opts, params[0].([][]byte))
 }
 
-// Display returns a string representing the Go function.
+// Display returns a string representing the "multicall" method of the ETicketSamplerMulticallMethod type.
 //
 // No parameters.
 // Returns a string.
-func (t ETicketSamplerBatchTranferMethod) Display() string {
-	return t.abi.Methods["batchTransfer"].String()
+func (t ETicketSamplerMulticallMethod) Display() string {
+	return "function multicall(string method, string[] methodParams) returns(bytes[] results)"
 }

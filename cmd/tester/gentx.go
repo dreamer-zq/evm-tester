@@ -147,15 +147,19 @@ func addGenTxFlags(cmd *cobra.Command) {
 	addSendTxFlags(cmd)
 }
 
-func addSendTxFlags(cmd *cobra.Command) {
-	cmd.Flags().Uint64(flagBatchSize, 10, "number of transactions per batch")
-	cmd.Flags().Bool(flagConcurrent, false, "whether to use concurrent mode,the number of concurrencies is the same as `data-count`")
-	cmd.Flags().Int(flagMaxThreads, 100, "maximum number of threads")
+func addTxFlags(cmd *cobra.Command) {
 	cmd.Flags().String(flagPrivateKey, "", "send the account private key for the transaction")
 	cmd.Flags().Int64(flagNonce, 0, "user's nonce")
 	cmd.Flags().Int64(flagGasFeeCap, 0, "gas fee cap to use for the 1559 transaction execution (nil = gas price oracle,fetch from chain)")
 	cmd.Flags().Int64(flagGasTipCap, 0, "gas priority fee cap to use for the 1559 transaction execution (nil = gas price oracle,fetch from chain)")
 	cmd.Flags().Uint64(flagGasLimit, 0, "gas limit to set for the transaction execution (0 = estimate,fetch from chain)")
+}
+
+func addSendTxFlags(cmd *cobra.Command) {
+	addTxFlags(cmd)
+	cmd.Flags().Uint64(flagBatchSize, 10, "number of transactions per batch")
+	cmd.Flags().Bool(flagConcurrent, false, "whether to use concurrent mode,the number of concurrencies is the same as `data-count`")
+	cmd.Flags().Int(flagMaxThreads, 100, "maximum number of threads")
 	cmd.Flags().String(flagContractMethod, "", "the contract method name being tested")
 	cmd.Flags().StringSlice(flagContractParams, []string{}, "the contract method params being tested")
 	cmd.Flags().String(flagContract, "", "the contract address being tested")

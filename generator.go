@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -172,7 +173,8 @@ func (tg *TxGenerator) Run() ([]*Payload, error) {
 		}
 		break
 	case tg.privKey != "":
-		sender, err := crypto.HexToECDSA(tg.privKey)
+		privKey := strings.TrimPrefix(tg.privKey, "0x")
+		sender, err := crypto.HexToECDSA(privKey)
 		if err != nil {
 			return nil, err
 		}

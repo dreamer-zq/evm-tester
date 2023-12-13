@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"crypto/ecdsa"
 	"fmt"
+	"math/big"
+	"strings"
 
 	"github.com/pkg/errors"
 
@@ -11,6 +14,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/dreamer-zq/turbo-tester/simple"
+)
+
+var (
+	flagContractConstructorParams = "contract-constructor-params"
 )
 
 // DeployCmd returns a new instance of the `cobra.Command` struct for the `deploy` command.
@@ -27,14 +34,59 @@ func DeployCmd(manager *simple.Manager) *cobra.Command {
 				return err
 			}
 
-			senderPrivateKey, err := crypto.GenerateKey()
+			constructorParams, err := cmd.Flags().GetStringSlice(flagContractConstructorParams)
+			if err != nil {
+				return err
+			}
+
+			gasLimit, err := cmd.Flags().GetUint64(flagGasLimit)
+			if err != nil {
+				return err
+			}
+
+			gasFeeCap, err := cmd.Flags().GetInt64(flagGasFeeCap)
+			if err != nil {
+				return err
+			}
+
+			gasTipCap, err := cmd.Flags().GetInt64(flagGasTipCap)
+			if err != nil {
+				return err
+			}
+
+			privKey, err := cmd.Flags().GetString(flagPrivateKey)
+			if err != nil {
+				return err
+			}
+
+			nonce, err := cmd.Flags().GetInt64(flagNonce)
+			if err != nil {
+				return err
+			}
+
+			var senderPrivateKey *ecdsa.PrivateKey
+			if privKey != "" {
+				privKey = strings.TrimPrefix(privKey, "0x")
+				senderPrivateKey, err = crypto.HexToECDSA(privKey)
+				if err != nil {
+					return err
+				}
+			} else {
+				senderPrivateKey, err = crypto.GenerateKey()
+				if err != nil {
+					return err
+				}
+			}
 			// Create an authorized transactor and call the store function
 			auth, err := bind.NewKeyedTransactorWithChainID(senderPrivateKey, conf.chainID)
 			if err != nil {
 				return errors.Wrap(err, "failed to create authorized transactor")
 			}
-
-			contractAddr, err := conf.contract.Deploy(cmd, auth, conf.client)
+			auth.GasFeeCap = big.NewInt(gasFeeCap)
+			auth.GasTipCap = big.NewInt(gasTipCap)
+			auth.GasLimit = gasLimit
+			auth.Nonce = big.NewInt(nonce)
+			contractAddr, err := conf.contract.Deploy(auth, conf.client, constructorParams)
 			if err != nil {
 				return errors.Wrap(err, "failed to deploy contract")
 			}
@@ -45,5 +97,7 @@ func DeployCmd(manager *simple.Manager) *cobra.Command {
 			return nil
 		},
 	}
+	addTxFlags(cmd)
+	cmd.Flags().StringSlice(flagContractConstructorParams, []string{}, "the contract constructor params")
 	return cmd
 }
