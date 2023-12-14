@@ -43,12 +43,12 @@ func (tgs *ETicketSampler) GenTxBuilder(conn *ethclient.Client, method string, p
 	if !ok {
 		return nil, errors.New("invalid method")
 	}
-	p, err := m.FormatParams(params)
-	if err != nil {
-		return nil, err
-	}
 
 	return func(opts *bind.TransactOpts) (*types.Transaction, error) {
+		p, err := m.FormatParams(params)
+		if err != nil {
+			return nil, err
+		}
 		return m.GenTx(opts, p...)
 	}, nil
 }
@@ -215,7 +215,7 @@ func (t *ETicketSamplerMulticallMethod) FormatParams(params []string) ([]interfa
 	switch params[0] {
 	case "mint":
 		to := common.HexToAddress(params[1])
-		amount, err :=strconv.ParseInt(params[2], 10, 64)
+		amount, err := strconv.ParseInt(params[2], 10, 64)
 		if err != nil {
 			return nil, errors.New("invalid contract params amount")
 		}
@@ -233,8 +233,6 @@ func (t *ETicketSamplerMulticallMethod) FormatParams(params []string) ([]interfa
 			}
 		}
 		tokenIDTo := big.NewInt(tokenIDFrom.Int64() + amount)
-		slog.Info("mint erc721 token", "tokenIdFrom", tokenIDFrom.Int64(), "tokenIDTo", tokenIDTo.Int64())
-
 		for i := tokenIDFrom; i.Cmp(tokenIDTo) < 0; i.Add(i, big.NewInt(1)) {
 			data, err := t.abi.Pack("mint", to, i)
 			if err != nil {
@@ -243,6 +241,7 @@ func (t *ETicketSamplerMulticallMethod) FormatParams(params []string) ([]interfa
 			datas = append(datas, data)
 		}
 		t.tokenNext = big.NewInt(tokenIDTo.Int64() + 1)
+		slog.Info("mint erc721 token", "tokenNext", t.tokenNext.Int64(), "tokenIdFrom", tokenIDFrom.Int64(), "tokenIDTo", tokenIDTo.Int64())
 	}
 	return []interface{}{datas}, nil
 }
