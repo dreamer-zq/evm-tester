@@ -278,7 +278,7 @@ func (tg *TxGenerator) BatchGenTxs(sender *ecdsa.PrivateKey, senderNonce *big.In
 func (tg *TxGenerator) RandomGenTx() (*Payload, error) {
 	sender, err := crypto.GenerateKey()
 	if err != nil {
-		log.Fatalf("Failed to generate key: %v", err)
+		return nil, err
 	}
 	senderNonce := big.NewInt(0)
 	return tg.GenTx(sender, senderNonce)

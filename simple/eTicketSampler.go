@@ -1,9 +1,9 @@
 package simple
 
 import (
-	"encoding/hex"
-	"fmt"
+	"log/slog"
 	"math/big"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -67,12 +67,11 @@ func (tgs *ETicketSampler) Deploy(auth *bind.TransactOpts, backend bind.Contract
 	if !ok {
 		return common.Address{}, errors.New("invalid contract params totalSupply")
 	}
-	
+
 	validTime, ok := new(big.Int).SetString(params[3], 10)
 	if !ok {
 		return common.Address{}, errors.New("invalid contract params validTime")
 	}
-	fmt.Println(infos,rights,totalSupply.Uint64(), validTime.Uint64())
 	contractAddr, _, _, err := gen.DeployETicket(auth, backend, infos, rights, totalSupply, validTime)
 	if err != nil {
 		return common.Address{}, errors.Wrap(err, "failed to deploy contract")
@@ -98,7 +97,7 @@ func (tgs *ETicketSampler) MethodMap(conn *ethclient.Client) (map[string]Method,
 	return map[string]Method{
 		"mint":             ETicketSamplerMintMethod{ticker, abi},
 		"safeTransferFrom": ETicketSamplerTranferMethod{ticker, abi},
-		"multicall":        ETicketSamplerMulticallMethod{ticker, abi},
+		"multicall":        &ETicketSamplerMulticallMethod{ticker, abi, nil},
 	}, nil
 }
 
@@ -192,8 +191,9 @@ func (t ETicketSamplerTranferMethod) Display() string {
 
 // ETicketSamplerMulticallMethod is a struct that implements the Method interface.
 type ETicketSamplerMulticallMethod struct {
-	contract *gen.ETicket
-	abi      *abi.ABI
+	contract  *gen.ETicket
+	abi       *abi.ABI
+	tokenNext *big.Int
 }
 
 // FormatParams is a function that takes in a slice of strings and returns a slice of interfaces and an error.
@@ -206,7 +206,7 @@ type ETicketSamplerMulticallMethod struct {
 // Returns:
 // - []interface{}: a slice of interfaces representing the formatted parameters.
 // - error: an error indicating any issues that occurred during the formatting process.
-func (t ETicketSamplerMulticallMethod) FormatParams(params []string) ([]interface{}, error) {
+func (t *ETicketSamplerMulticallMethod) FormatParams(params []string) ([]interface{}, error) {
 	if len(params) == 0 {
 		return nil, errors.New("invalid contract params")
 	}
@@ -215,23 +215,34 @@ func (t ETicketSamplerMulticallMethod) FormatParams(params []string) ([]interfac
 	switch params[0] {
 	case "mint":
 		to := common.HexToAddress(params[1])
-		tokenIDFrom, ok := new(big.Int).SetString(params[2], 10)
-		if !ok {
-			return nil, errors.New("invalid contract params tokenIdFrom")
-		}
-		tokenIDTo, ok := new(big.Int).SetString(params[3], 10)
-		if !ok {
-			return nil, errors.New("invalid contract params tokenIdTo")
+		amount, err :=strconv.ParseInt(params[2], 10, 64)
+		if err != nil {
+			return nil, errors.New("invalid contract params amount")
 		}
 
-		for i := tokenIDFrom; i.Cmp(tokenIDTo) <= 0; i.Add(i, big.NewInt(1)) {
+		var (
+			tokenIDFrom *big.Int
+			ok          bool
+		)
+		if t.tokenNext != nil {
+			tokenIDFrom = big.NewInt(t.tokenNext.Int64())
+		} else {
+			tokenIDFrom, ok = new(big.Int).SetString(params[3], 10)
+			if !ok {
+				return nil, errors.New("invalid contract params tokenIdFrom")
+			}
+		}
+		tokenIDTo := big.NewInt(tokenIDFrom.Int64() + amount)
+		slog.Info("mint erc721 token", "tokenIdFrom", tokenIDFrom.Int64(), "tokenIDTo", tokenIDTo.Int64())
+
+		for i := tokenIDFrom; i.Cmp(tokenIDTo) < 0; i.Add(i, big.NewInt(1)) {
 			data, err := t.abi.Pack("mint", to, i)
 			if err != nil {
 				return nil, err
 			}
-			fmt.Println(hex.EncodeToString(data))
 			datas = append(datas, data)
 		}
+		t.tokenNext = big.NewInt(tokenIDTo.Int64() + 1)
 	}
 	return []interface{}{datas}, nil
 }
@@ -241,7 +252,7 @@ func (t ETicketSamplerMulticallMethod) FormatParams(params []string) ([]interfac
 // opts: The transaction options.
 // params: The parameters for the transaction.
 // returns: The generated transaction and any error that occurred.
-func (t ETicketSamplerMulticallMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error) {
+func (t *ETicketSamplerMulticallMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error) {
 	if len(params) != 1 {
 		return nil, errors.New("invalid contract params")
 	}
@@ -252,6 +263,6 @@ func (t ETicketSamplerMulticallMethod) GenTx(opts *bind.TransactOpts, params ...
 //
 // No parameters.
 // Returns a string.
-func (t ETicketSamplerMulticallMethod) Display() string {
+func (t *ETicketSamplerMulticallMethod) Display() string {
 	return "function multicall(string method, string[] methodParams) returns(bytes[] results)"
 }
