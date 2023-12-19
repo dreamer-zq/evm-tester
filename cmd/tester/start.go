@@ -38,7 +38,7 @@ func StartCmd(manager *simple.Manager) *cobra.Command {
 				return err
 			}
 
-			tg, err := getGenerator(conf, cmd)
+			generator, err := getGenerator(conf, cmd)
 			if err != nil {
 				return err
 			}
@@ -75,7 +75,7 @@ func StartCmd(manager *simple.Manager) *cobra.Command {
 			transactor := tester.NewTransactor(
 				conf.client,
 				userNum,
-				tg,
+				generator,
 				tester.SetTotalBatch(totalBatch),
 				tester.SetEndTime(endTime),
 				tester.SetSendMode(sendMode),

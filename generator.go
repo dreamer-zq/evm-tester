@@ -6,7 +6,6 @@ import (
 	"log"
 	"math/big"
 	"net/http"
-	"strings"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -104,7 +103,7 @@ func SetNonce(nonce int64) Option {
 //
 // privKey: the private key string.
 // Returns: the TxGenerator with the updated private key.
-func SetPrivKey(privKey string) Option {
+func SetPrivKey(privKey *ecdsa.PrivateKey) Option {
 	return func(tg *TxGenerator) *TxGenerator {
 		tg.privKey = privKey
 		return tg
@@ -123,7 +122,7 @@ type TxGenerator struct {
 	gasTipCap  *big.Int // Gas priority fee cap to use for the 1559 transaction execution (nil = gas price oracle)
 	gasLimit   uint64   // Gas limit to set for the transaction execution (0 = estimate)
 	batchSize  uint64
-	privKey    string
+	privKey    *ecdsa.PrivateKey
 	nonce      int64
 	concurrent bool
 }
@@ -172,13 +171,8 @@ func (tg *TxGenerator) Run() ([]*Payload, error) {
 			return nil, err
 		}
 		break
-	case tg.privKey != "":
-		privKey := strings.TrimPrefix(tg.privKey, "0x")
-		sender, err := crypto.HexToECDSA(privKey)
-		if err != nil {
-			return nil, err
-		}
-		data, err = tg.BatchGenTxs(sender, big.NewInt(tg.nonce))
+	case tg.privKey != nil:
+		data, err = tg.BatchGenTxs(tg.privKey, big.NewInt(tg.nonce))
 		if err != nil {
 			return nil, err
 		}

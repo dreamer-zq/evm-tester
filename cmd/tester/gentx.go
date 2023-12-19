@@ -1,9 +1,6 @@
 package cmd
 
 import (
-	"math/big"
-
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 
 	tester "github.com/dreamer-zq/turbo-tester"
@@ -44,12 +41,12 @@ func GentxCmd(manager *simple.Manager) *cobra.Command {
 				return err
 			}
 
-			tg, err := getGenerator(conf, cmd)
+			generator, err := getGenerator(conf, cmd)
 			if err != nil {
 				return err
 			}
 
-			data, err := tg.Run()
+			data, err := generator.Run()
 			if err != nil {
 				return err
 			}
@@ -61,74 +58,34 @@ func GentxCmd(manager *simple.Manager) *cobra.Command {
 	return cmd
 }
 
-func getGenerator(conf *GlobalConnfig, cmd *cobra.Command) (*tester.TxGenerator, error) {
-	count, err := cmd.Flags().GetUint64(flagBatchSize)
-	if err != nil {
-		return nil, err
-	}
-
+func getGenerator(conf *GlobalConfig, cmd *cobra.Command) (*tester.TxGenerator, error) {
 	maxThreads, err := cmd.Flags().GetInt(flagMaxThreads)
 	if err != nil {
 		return nil, err
 	}
 
-	var opts []tester.Option
-	gasLimit, err := cmd.Flags().GetUint64(flagGasLimit)
+	txConf, err := loadTransactionFlags(cmd, conf.client)
 	if err != nil {
 		return nil, err
 	}
-	opts = append(opts, tester.SetGasLimit(gasLimit))
-	opts = append(opts, tester.SetBatchSize(count))
-
-	gasFeeCap, err := cmd.Flags().GetInt64(flagGasFeeCap)
-	if err != nil {
-		return nil, err
-	}
-	opts = append(opts, tester.SetGasFeeCap(big.NewInt(gasFeeCap)))
-
-	gasTipCap, err := cmd.Flags().GetInt64(flagGasTipCap)
-	if err != nil {
-		return nil, err
-	}
-	opts = append(opts, tester.SetGasTipCap(big.NewInt(gasTipCap)))
-
-	privKey, err := cmd.Flags().GetString(flagPrivateKey)
-	if err != nil {
-		return nil, err
-	}
-	opts = append(opts, tester.SetPrivKey(privKey))
-
-	nonce, err := cmd.Flags().GetInt64(flagNonce)
-	if err != nil {
-		return nil, err
-	}
-	opts = append(opts, tester.SetNonce(nonce))
 
 	concurrent, err := cmd.Flags().GetBool(flagConcurrent)
 	if err != nil {
 		return nil, err
 	}
-	opts = append(opts, tester.SetConcurrent(concurrent))
 
-	method, err := cmd.Flags().GetString(flagContractMethod)
-	if err != nil {
-		return nil, err
+	opts := []tester.Option{
+		tester.SetBatchSize(txConf.batchSize),
+		tester.SetGasLimit(txConf.gasLimit),
+		tester.SetGasFeeCap(txConf.gasFeeCap),
+		tester.SetGasTipCap(txConf.gasTipCap),
+		tester.SetPrivKey(txConf.privKey),
+		tester.SetNonce(txConf.nonce),
+		tester.SetConcurrent(concurrent),
 	}
 
-	contractParams, err := cmd.Flags().GetStringSlice(flagContractParams)
-	if err != nil {
-		return nil, err
-	}
-
-	contractAddrStr, err := cmd.Flags().GetString(flagContract)
-	if err != nil {
-		return nil, err
-	}
-	contractAddr := common.HexToAddress(contractAddrStr)
-
-	conf.contract.SetContractAddr(contractAddr)
-
-	txBuilrder, err := conf.contract.GenTxBuilder(conf.client, method, contractParams)
+	conf.contract.SetContractAddr(txConf.contractAddr)
+	txBuilrder, err := conf.contract.GenTxBuilder(conf.client, txConf.contractMethod, txConf.contractMethodParams)
 	if err != nil {
 		return nil, err
 	}
