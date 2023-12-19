@@ -74,6 +74,12 @@ type BatchResult struct {
 	payloads []*Payload
 }
 
+type tallyItem struct {
+	batchNo int64
+	err     error
+	took    int64
+}
+
 // TransactorOpts is a function that takes in a pointer to a Transactor object
 type TransactorOpts func(*Transactor) *Transactor
 
@@ -124,6 +130,7 @@ type Transactor struct {
 	endTime    time.Time
 	gen        *TxGenerator
 	batch      chan *BatchResult
+	tallyCh    chan *tallyItem
 	mu         sync.Mutex
 
 	sendMode SendMode
@@ -146,6 +153,7 @@ func NewTransactor(eth *ethclient.Client, maxConcurrentNum int, gen *TxGenerator
 		rs:       &Result{},
 		gen:      gen,
 		batch:    make(chan *BatchResult, 100),
+		tallyCh:  make(chan *tallyItem, 5000),
 		exit:     make(chan int),
 		segments: make(map[int64]*Result),
 	}
@@ -164,18 +172,18 @@ func NewTransactor(eth *ethclient.Client, maxConcurrentNum int, gen *TxGenerator
 func (t *Transactor) Run() {
 	go t.listenExit()
 	go t.produceTx()
+	go t.startTally()
 	go t.consumeTx()
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	
+
 	select {
 	case <-t.exit:
-		t.pool.Close()
-		t.printResult()
+		t.Exit()
 		return
-	case <- sigs: // wait for sigs to quit exit
-		t.printResult()
+	case <-sigs: // wait for sigs to quit exit
+		t.Exit()
 		return
 	}
 }
@@ -186,6 +194,17 @@ func (t *Transactor) Run() {
 // No return types.
 func (t *Transactor) Stop() {
 	t.exit <- 1
+}
+
+// Exit closes the batch and tallyCh channels, closes the pool, and prints the result.
+//
+// No parameters.
+// No return type.
+func (t *Transactor) Exit() {
+	t.pool.Close()
+	t.printResult()
+	close(t.batch)
+	close(t.tallyCh)
 }
 
 func (t *Transactor) produceTx() {
@@ -216,6 +235,12 @@ func (t *Transactor) consumeTx() {
 	for batch := range t.batch {
 		slog.Info("consume transactions", "batchNo", batch.batchNo)
 		t.sendTx(context.Background(), batch)
+	}
+}
+
+func (t *Transactor) startTally() {
+	for item := range t.tallyCh {
+		t.tally(item.batchNo, item.err, item.took)
 	}
 }
 
@@ -256,7 +281,9 @@ func (t *Transactor) stopProducer() bool {
 }
 
 func (t *Transactor) stopConsumer() {
-	if t.producerExit.Load() && t.rs.TotalTxCount.Load() == t.produceTxs.Load() {
+	if t.producerExit.Load() &&
+		t.rs.TotalTxCount.Load() == t.produceTxs.Load() &&
+		len(t.tallyCh) == 0 {
 		t.Stop()
 	}
 }
@@ -293,7 +320,7 @@ func (t *Transactor) sendTxsParallel(ctx context.Context, batch *BatchResult) {
 		t.pool.Submit(func() {
 			begin := time.Now()
 			err := t.eth.SendTransaction(ctx, &txCopy)
-			t.tally(batch.batchNo, err, time.Since(begin).Nanoseconds())
+			t.tallyCh <- &tallyItem{batch.batchNo, err, time.Since(begin).Nanoseconds()}
 		})
 	}
 }
@@ -304,7 +331,7 @@ func (t *Transactor) sendTxsSegment(ctx context.Context, batch *BatchResult) {
 		t.pool.Submit(func() {
 			begin := time.Now()
 			err := t.eth.SendTransaction(ctx, &txCopy)
-			t.tally(batch.batchNo, err, time.Since(begin).Nanoseconds())
+			t.tallyCh <- &tallyItem{batch.batchNo, err, time.Since(begin).Nanoseconds()}
 		})
 	}
 	t.pool.Finish()
@@ -314,7 +341,7 @@ func (t *Transactor) sendTxsSync(ctx context.Context, batch *BatchResult) {
 	for _, payload := range batch.payloads {
 		begin := time.Now()
 		err := t.eth.SendTransaction(ctx, payload.Tx)
-		t.tally(batch.batchNo, err, time.Since(begin).Nanoseconds())
+		t.tallyCh <- &tallyItem{batch.batchNo, err, time.Since(begin).Nanoseconds()}
 	}
 }
 
@@ -336,7 +363,7 @@ func (t *Transactor) sendTxsBatch(ctx context.Context, batch *BatchResult) {
 		}
 		took := time.Since(begin).Nanoseconds()
 		for _, elem := range elems {
-			t.tally(batch.batchNo, elem.Error, took)
+			t.tallyCh <- &tallyItem{batch.batchNo, elem.Error, took}
 		}
 	})
 	if !t.gen.concurrent {
