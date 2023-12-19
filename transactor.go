@@ -88,17 +88,6 @@ func SetEndTime(endTime time.Time) TransactorOpts {
 	}
 }
 
-// SetSync sets the sync flag of a Transactor.
-//
-// sync: a boolean indicating whether the Transactor should sync.
-// Returns: a TransactorOpts function that sets the sync flag of a Transactor.
-func SetSync(sync bool) TransactorOpts {
-	return func(t *Transactor) *Transactor {
-		t.sync = sync
-		return t
-	}
-}
-
 // SetTotalBatch sets the total batch value for the TransactorOpts.
 //
 // totalBatch: The total batch value to be set.
@@ -128,7 +117,6 @@ func SetSendMode(sendMode SendMode) TransactorOpts {
 type Transactor struct {
 	eth  *ethclient.Client
 	pool *Pool
-	sync bool
 
 	totalBatch int64
 	batchNo    atomic.Int64
@@ -351,6 +339,9 @@ func (t *Transactor) sendTxsBatch(ctx context.Context, batch *BatchResult) {
 			t.tally(batch.batchNo, elem.Error, took)
 		}
 	})
+	if !t.gen.concurrent {
+		t.pool.Finish()
+	}
 }
 
 // tally updates the transaction statistics based on the given error and duration.

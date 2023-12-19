@@ -231,17 +231,18 @@ func (t *ETicketSamplerMulticallMethod) FormatParams(params []string) ([]interfa
 			if !ok {
 				return nil, errors.New("invalid contract params tokenIdFrom")
 			}
-		}
+		} 
 		tokenIDTo := big.NewInt(tokenIDFrom.Int64() + amount)
-		for i := tokenIDFrom; i.Cmp(tokenIDTo) < 0; i.Add(i, big.NewInt(1)) {
+		slog.Info("mint erc721 token", "tokenIdFrom", tokenIDFrom.Int64(), "tokenIDTo", tokenIDTo.Int64())
+
+		for i := big.NewInt(tokenIDFrom.Int64()); i.Cmp(tokenIDTo) < 0; i.Add(i, big.NewInt(1)) {
 			data, err := t.abi.Pack("mint", to, i)
 			if err != nil {
 				return nil, err
 			}
 			datas = append(datas, data)
 		}
-		t.tokenNext = big.NewInt(tokenIDTo.Int64() + 1)
-		slog.Info("mint erc721 token", "tokenNext", t.tokenNext.Int64(), "tokenIdFrom", tokenIDFrom.Int64(), "tokenIDTo", tokenIDTo.Int64())
+		t.tokenNext = big.NewInt(tokenIDTo.Int64())
 	}
 	return []interface{}{datas}, nil
 }
