@@ -66,7 +66,7 @@ func (tgs *ETicketSampler) Deploy(auth *bind.TransactOpts, backend bind.Contract
 	if !ok {
 		return common.Address{}, errors.New("invalid contract params validTime")
 	}
-	contractAddr, _, _, err := gen.DeployETicket(auth, backend, infos, rights, validTime)
+	contractAddr, _, _, err := gen.DeployETicket(auth, backend, infos, rights, nil, validTime)
 	if err != nil {
 		return common.Address{}, errors.Wrap(err, "failed to deploy contract")
 	}
