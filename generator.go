@@ -162,7 +162,7 @@ func NewTxGenerator(
 // If the TxGenerator has a private key, it calls the BatchGenTxs method to generate the transactions using the private key.
 // If neither of the above conditions are met, it generates a new private key and calls the BatchGenTxs method to generate the transactions.
 // It returns the generated transactions and any error that occurred.
-func (tg *TxGenerator) Run() ([]*Payload, error) {
+func (tg *TxGenerator) Run() ([]*Payload, bool, error) {
 	var (
 		data []*Payload
 		err  error
@@ -170,28 +170,21 @@ func (tg *TxGenerator) Run() ([]*Payload, error) {
 	switch {
 	case tg.concurrent:
 		data, err = tg.RandomBatchGenTxs()
-		if err != nil {
-			return data, err
-		}
 		break
 	case tg.privKey != nil:
 		data, err = tg.BatchGenTxs(tg.privKey, big.NewInt(tg.nonce))
-		if err != nil {
-			return data, err
-		}
 		break
 	default:
 		sender, err := crypto.GenerateKey()
 		if err != nil {
-			return data, err
+			return data, false, err
 		}
-
 		data, err = tg.BatchGenTxs(sender, big.NewInt(0))
-		if err != nil {
-			return data, err
-		}
 	}
-	return data, nil
+	if err != nil && errors.Is(err, ErrExit) {
+		return data, true, nil
+	}
+	return data, false, err
 }
 
 // GenTx generates a transaction using the provided sender's private key, sender nonce, and player address.

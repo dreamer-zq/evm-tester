@@ -46,7 +46,7 @@ func GentxCmd(manager *simple.Manager) *cobra.Command {
 				return err
 			}
 
-			data, err := generator.Run()
+			data, _, err := generator.Run()
 			if err != nil {
 				return err
 			}

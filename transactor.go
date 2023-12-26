@@ -2,7 +2,6 @@ package tester
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -215,17 +214,20 @@ func (t *Transactor) produceTx() {
 			t.gen.pool.Close()
 			return
 		}
-		payloads, err := t.gen.Run()
+		payloads, exit, err := t.gen.Run()
 		if err != nil {
-			if errors.Is(err, ErrExit){
-				t.producerExit.Store(true)
-			}
+			slog.Error("failed to generate transactions", "err", err)
+			break
+		}
+
+		if exit {
+			t.producerExit.Store(true)
 		}
 
 		if len(payloads) == 0 {
-			continue
+			break
 		}
-		
+
 		batchNo := t.batchNo.Load()
 		slog.Info("produce transactions", "count", len(payloads), "batchNo", batchNo)
 
