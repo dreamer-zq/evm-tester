@@ -2,6 +2,7 @@ package tester
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -152,7 +153,7 @@ func NewTransactor(eth *ethclient.Client, maxConcurrentNum int, gen *TxGenerator
 		pool:     NewPool(maxConcurrentNum, "transactor"),
 		rs:       &Result{},
 		gen:      gen,
-		batch:    make(chan *BatchResult, 100),
+		batch:    make(chan *BatchResult, 1000),
 		tallyCh:  make(chan *tallyItem, 5000),
 		exit:     make(chan int),
 		segments: make(map[int64]*Result),
@@ -216,9 +217,15 @@ func (t *Transactor) produceTx() {
 		}
 		payloads, err := t.gen.Run()
 		if err != nil {
-			slog.Error("Failed to generate transaction", "err", err)
+			if errors.Is(err, ErrExit){
+				t.producerExit.Store(true)
+			}
+		}
+
+		if len(payloads) == 0 {
 			continue
 		}
+		
 		batchNo := t.batchNo.Load()
 		slog.Info("produce transactions", "count", len(payloads), "batchNo", batchNo)
 

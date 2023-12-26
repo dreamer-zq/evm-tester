@@ -12,6 +12,7 @@ func NewManager() *Manager {
 	ms := make(map[string]Contract)
 	ms["eTicket"] = &ETicketSampler{}
 	ms["ticket"] = &TicketGameSampler{}
+	ms["poap"] = &POAPSampler{}
 	return &Manager{
 		ms: ms,
 	}

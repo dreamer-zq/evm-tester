@@ -16,6 +16,9 @@ import (
 	"github.com/pkg/errors"
 )
 
+// ErrExit is an error that indicates the generator should exit.
+var ErrExit = errors.New("exit")
+
 // Payload is a struct that contains the raw transaction and the chain ID.
 type Payload struct {
 	Tx      *types.Transaction `csv:"-"`
@@ -168,24 +171,24 @@ func (tg *TxGenerator) Run() ([]*Payload, error) {
 	case tg.concurrent:
 		data, err = tg.RandomBatchGenTxs()
 		if err != nil {
-			return nil, err
+			return data, err
 		}
 		break
 	case tg.privKey != nil:
 		data, err = tg.BatchGenTxs(tg.privKey, big.NewInt(tg.nonce))
 		if err != nil {
-			return nil, err
+			return data, err
 		}
 		break
 	default:
 		sender, err := crypto.GenerateKey()
 		if err != nil {
-			return nil, err
+			return data, err
 		}
 
 		data, err = tg.BatchGenTxs(sender, big.NewInt(0))
 		if err != nil {
-			return nil, err
+			return data, err
 		}
 	}
 	return data, nil
@@ -203,7 +206,7 @@ func (tg *TxGenerator) Run() ([]*Payload, error) {
 func (tg *TxGenerator) GenTx(sender *ecdsa.PrivateKey, senderNonce *big.Int) (*Payload, error) {
 	rawTransaction, err := tg.genTx(sender, senderNonce)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create or send transaction")
+		return nil, err
 	}
 
 	txbz, err := rawTransaction.MarshalBinary()
@@ -235,7 +238,7 @@ func (tg *TxGenerator) genTx(sender *ecdsa.PrivateKey, senderNonce *big.Int) (*t
 
 	rawTransaction, err := tg.createTx(auth)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create or send transaction")
+		return nil, err
 	}
 	return rawTransaction, nil
 }
@@ -255,6 +258,9 @@ func (tg *TxGenerator) BatchGenTxs(sender *ecdsa.PrivateKey, senderNonce *big.In
 	for i := uint64(0); i < tg.batchSize; i++ {
 		tx, err := tg.GenTx(sender, senderNonce)
 		if err != nil {
+			if errors.Is(err, ErrExit) {
+				return txs, err
+			}
 			return nil, errors.Wrap(err, "failed to generate transaction")
 		}
 		txs = append(txs, tx)
