@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/dreamer-zq/turbo-tester/simple"
+	"github.com/dreamer-zq/evm-tester/simple"
 )
 
 // GlobalConfig represents a global config

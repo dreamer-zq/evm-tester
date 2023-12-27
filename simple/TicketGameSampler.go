@@ -9,8 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 
-	tester "github.com/dreamer-zq/turbo-tester"
-	"github.com/dreamer-zq/turbo-tester/simple/gen"
+	tester "github.com/dreamer-zq/evm-tester"
+	"github.com/dreamer-zq/evm-tester/simple/gen"
 )
 
 // TicketGameSampler is a struct that implements the Sampler interface.

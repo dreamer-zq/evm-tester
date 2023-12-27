@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 
-	tester "github.com/dreamer-zq/turbo-tester"
+	tester "github.com/dreamer-zq/evm-tester"
 )
 
 // Contract is an interface that defines the GenTxBuilder method.

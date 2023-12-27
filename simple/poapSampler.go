@@ -11,9 +11,9 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/pkg/errors"
 
-	tester "github.com/dreamer-zq/turbo-tester"
-	"github.com/dreamer-zq/turbo-tester/data/db"
-	"github.com/dreamer-zq/turbo-tester/simple/gen"
+	tester "github.com/dreamer-zq/evm-tester"
+	"github.com/dreamer-zq/evm-tester/data/db"
+	"github.com/dreamer-zq/evm-tester/simple/gen"
 )
 
 var (

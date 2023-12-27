@@ -1,4 +1,4 @@
-module github.com/dreamer-zq/turbo-tester
+module github.com/dreamer-zq/evm-tester
 
 go 1.21.4
 

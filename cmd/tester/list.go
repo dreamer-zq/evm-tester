@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dreamer-zq/turbo-tester/simple"
+	"github.com/dreamer-zq/evm-tester/simple"
 	"github.com/spf13/cobra"
 )
 

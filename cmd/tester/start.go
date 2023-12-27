@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	tester "github.com/dreamer-zq/turbo-tester"
-	"github.com/dreamer-zq/turbo-tester/simple"
+	tester "github.com/dreamer-zq/evm-tester"
+	"github.com/dreamer-zq/evm-tester/simple"
 )
 
 var (

@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/dreamer-zq/turbo-tester/simple"
+	"github.com/dreamer-zq/evm-tester/simple"
 )
 
 // NewContractCmd creates a new instance of the cobra.Command for the "contract" command.

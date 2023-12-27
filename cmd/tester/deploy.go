@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/spf13/cobra"
 
-	"github.com/dreamer-zq/turbo-tester/simple"
+	"github.com/dreamer-zq/evm-tester/simple"
 )
 
 var (

@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	cmd "github.com/dreamer-zq/turbo-tester/cmd/tester"
+	cmd "github.com/dreamer-zq/evm-tester/cmd/tester"
 )
 func main() {
 	rootCmd := cmd.NewRootCmd()
