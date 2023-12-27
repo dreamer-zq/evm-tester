@@ -2,7 +2,6 @@ package tester
 
 import (
 	"os"
-	"path/filepath"
 
 	"github.com/gocarina/gocsv"
 )
@@ -15,7 +14,6 @@ import (
 //
 // The function returns an error if any error occurs during the file operations.
 func SaveToCSV(path string, data interface{}) error {
-	path = filepath.Join(path, "tester.csv")
 	csvFile, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, os.ModePerm)
 	if err != nil {
 		return err

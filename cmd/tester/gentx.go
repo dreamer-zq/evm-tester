@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"path/filepath"
+
 	"github.com/spf13/cobra"
 
 	tester "github.com/dreamer-zq/turbo-tester"
@@ -50,6 +52,7 @@ func GentxCmd(manager *simple.Manager) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			path = filepath.Join(path, "txs.csv")
 			return tester.SaveToCSV(path, data)
 		},
 	}

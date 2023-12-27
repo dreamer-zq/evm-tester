@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -75,6 +76,7 @@ type BatchResult struct {
 }
 
 type tallyItem struct {
+	txHash  common.Hash
 	batchNo int64
 	err     error
 	took    int64
@@ -132,12 +134,14 @@ type Transactor struct {
 	batch      chan *BatchResult
 	tallyCh    chan *tallyItem
 	mu         sync.Mutex
+	verifer    *Verifier
 
 	sendMode SendMode
 	rs       *Result
 	segments map[int64]*Result
 
 	producerExit atomic.Bool
+	consumerExit atomic.Bool
 
 	exit chan int
 }
@@ -146,7 +150,7 @@ type Transactor struct {
 //
 // It takes in an ethclient.Client pointer, a Pool pointer, and a TxGenerator pointer as parameters.
 // It returns a pointer to a Transactor.
-func NewTransactor(eth *ethclient.Client, maxConcurrentNum int, gen *TxGenerator, opts ...TransactorOpts) *Transactor {
+func NewTransactor(eth *ethclient.Client, maxConcurrentNum int, gen *TxGenerator, enable bool, opts ...TransactorOpts) *Transactor {
 	transactor := &Transactor{
 		eth:      eth,
 		pool:     NewPool(maxConcurrentNum, "transactor"),
@@ -160,6 +164,7 @@ func NewTransactor(eth *ethclient.Client, maxConcurrentNum int, gen *TxGenerator
 	for _, opt := range opts {
 		transactor = opt(transactor)
 	}
+	transactor.verifer = NewVerifier(enable, transactor.eth)
 	return transactor
 }
 
@@ -174,6 +179,7 @@ func (t *Transactor) Run() {
 	go t.produceTx()
 	go t.startTally()
 	go t.consumeTx()
+	go t.verifer.Start(t.sendMode == Parallel)
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -249,6 +255,9 @@ func (t *Transactor) consumeTx() {
 
 func (t *Transactor) startTally() {
 	for item := range t.tallyCh {
+		if item.err == nil {
+			t.verifer.Add(item.txHash)
+		}
 		t.tally(item.batchNo, item.err, item.took)
 	}
 }
@@ -259,6 +268,7 @@ func (t *Transactor) listenExit() {
 		<-tick.C
 		t.stopProducer()
 		t.stopConsumer()
+		t.stopVerifier()
 	}
 }
 
@@ -293,6 +303,14 @@ func (t *Transactor) stopConsumer() {
 	if t.producerExit.Load() &&
 		t.rs.TotalTxCount.Load() == t.produceTxs.Load() &&
 		len(t.tallyCh) == 0 {
+		t.consumerExit.Store(true)
+	}
+}
+
+func (t *Transactor) stopVerifier() {
+	if t.producerExit.Load() &&
+		t.consumerExit.Load() &&
+		t.verifer.Finish(t.rs.TotalTxCount.Load()) {
 		t.Stop()
 	}
 }
@@ -329,7 +347,7 @@ func (t *Transactor) sendTxsParallel(ctx context.Context, batch *BatchResult) {
 		t.pool.Submit(func() {
 			begin := time.Now()
 			err := t.eth.SendTransaction(ctx, &txCopy)
-			t.tallyCh <- &tallyItem{batch.batchNo, err, time.Since(begin).Nanoseconds()}
+			t.tallyCh <- &tallyItem{txCopy.Hash(), batch.batchNo, err, time.Since(begin).Nanoseconds()}
 		})
 	}
 }
@@ -340,7 +358,7 @@ func (t *Transactor) sendTxsSegment(ctx context.Context, batch *BatchResult) {
 		t.pool.Submit(func() {
 			begin := time.Now()
 			err := t.eth.SendTransaction(ctx, &txCopy)
-			t.tallyCh <- &tallyItem{batch.batchNo, err, time.Since(begin).Nanoseconds()}
+			t.tallyCh <- &tallyItem{txCopy.Hash(), batch.batchNo, err, time.Since(begin).Nanoseconds()}
 		})
 	}
 	t.pool.Finish()
@@ -350,7 +368,7 @@ func (t *Transactor) sendTxsSync(ctx context.Context, batch *BatchResult) {
 	for _, payload := range batch.payloads {
 		begin := time.Now()
 		err := t.eth.SendTransaction(ctx, payload.Tx)
-		t.tallyCh <- &tallyItem{batch.batchNo, err, time.Since(begin).Nanoseconds()}
+		t.tallyCh <- &tallyItem{payload.Tx.Hash(), batch.batchNo, err, time.Since(begin).Nanoseconds()}
 	}
 }
 
@@ -371,8 +389,9 @@ func (t *Transactor) sendTxsBatch(ctx context.Context, batch *BatchResult) {
 			return
 		}
 		took := time.Since(begin).Nanoseconds()
-		for _, elem := range elems {
-			t.tallyCh <- &tallyItem{batch.batchNo, elem.Error, took}
+		for i, elem := range elems {
+			hash := batch.payloads[i].Tx.Hash()
+			t.tallyCh <- &tallyItem{hash, batch.batchNo, elem.Error, took}
 		}
 	})
 	if !t.gen.concurrent {
