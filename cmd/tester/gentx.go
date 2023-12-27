@@ -1,37 +1,39 @@
 package cmd
 
 import (
-	"math/big"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
-	tester "github.com/dreamer-zq/turbo-tester"
-	"github.com/dreamer-zq/turbo-tester/simple"
+	tester "github.com/dreamer-zq/evm-tester"
+	"github.com/dreamer-zq/evm-tester/simple"
 )
 
 var (
-	flagBatchSize  = "batch-size"
-	flagConcurrent = "concurrent"
-	flagContract   = "contract"
-	flagMaxThreads = "max-threads"
-	flagOutput     = "output"
-	flagGasFeeCap  = "gas-fee-cap"
-	flagGasTipCap  = "gas-tip-cap"
-	flagGasLimit   = "gas-limit"
-	flagPrivateKey = "private-key"
-	flagNonce      = "nonce"
+	flagBatchSize      = "batch-size"
+	flagConcurrent     = "concurrent"
+	flagContract       = "contract"
+	flagMaxThreads     = "max-threads"
+	flagOutput         = "output"
+	flagGasFeeCap      = "gas-fee-cap"
+	flagGasTipCap      = "gas-tip-cap"
+	flagGasLimit       = "gas-limit"
+	flagPrivateKey     = "private-key"
+	flagNonce          = "nonce"
+	flagContractParams = "contract-method-params"
+	flagContractMethod = "contract-method"
 )
 
 // GentxCmd returns a cobra Command for the "gentx" command.
 //
 // The command generates test data and outputs it to a CSV file.
 // It takes no parameters and returns a pointer to a cobra.Command.
-func GentxCmd(sampler simple.Sampler) *cobra.Command {
+func GentxCmd(manager *simple.Manager) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "gentx",
 		Short: "Generate test data and output to cvs file",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			conf, err := loadGlobalFlags(cmd)
+			conf, err := loadGlobalFlags(cmd, manager)
 			if err != nil {
 				return err
 			}
@@ -41,74 +43,52 @@ func GentxCmd(sampler simple.Sampler) *cobra.Command {
 				return err
 			}
 
-			tg, err := getGenerator(conf, cmd, sampler)
+			generator, err := getGenerator(conf, cmd)
 			if err != nil {
 				return err
 			}
 
-			data, err := tg.Run()
+			data, _, err := generator.Run()
 			if err != nil {
 				return err
 			}
+			path = filepath.Join(path, "txs.csv")
 			return tester.SaveToCSV(path, data)
 		},
 	}
 
 	addGenTxFlags(cmd)
-	sampler.AddFlags(cmd)
 	return cmd
 }
 
-func getGenerator(conf *GlobalConnfig, cmd *cobra.Command, sampler simple.Sampler) (*tester.TxGenerator, error) {
-	count, err := cmd.Flags().GetUint64(flagBatchSize)
-	if err != nil {
-		return nil, err
-	}
-
+func getGenerator(conf *GlobalConfig, cmd *cobra.Command) (*tester.TxGenerator, error) {
 	maxThreads, err := cmd.Flags().GetInt(flagMaxThreads)
 	if err != nil {
 		return nil, err
 	}
 
-	var opts []tester.Option
-	gasLimit, err := cmd.Flags().GetUint64(flagGasLimit)
+	txConf, err := loadTransactionFlags(cmd, conf.client)
 	if err != nil {
 		return nil, err
 	}
-	opts = append(opts, tester.SetGasLimit(gasLimit))
-	opts = append(opts, tester.SetBatchSize(count))
-
-	gasFeeCap, err := cmd.Flags().GetInt64(flagGasFeeCap)
-	if err != nil {
-		return nil, err
-	}
-	opts = append(opts, tester.SetGasFeeCap(big.NewInt(gasFeeCap)))
-
-	gasTipCap, err := cmd.Flags().GetInt64(flagGasTipCap)
-	if err != nil {
-		return nil, err
-	}
-	opts = append(opts, tester.SetGasTipCap(big.NewInt(gasTipCap)))
-
-	privKey, err := cmd.Flags().GetString(flagPrivateKey)
-	if err != nil {
-		return nil, err
-	}
-	opts = append(opts, tester.SetPrivKey(privKey))
-
-	nonce, err := cmd.Flags().GetInt64(flagNonce)
-	if err != nil {
-		return nil, err
-	}
-	opts = append(opts, tester.SetNonce(nonce))
 
 	concurrent, err := cmd.Flags().GetBool(flagConcurrent)
 	if err != nil {
 		return nil, err
 	}
-	opts = append(opts, tester.SetConcurrent(concurrent))
 
-	txBuilrder, err := sampler.GenTxBuilder(cmd, conf.client)
+	opts := []tester.Option{
+		tester.SetBatchSize(txConf.batchSize),
+		tester.SetGasLimit(txConf.gasLimit),
+		tester.SetGasFeeCap(txConf.gasFeeCap),
+		tester.SetGasTipCap(txConf.gasTipCap),
+		tester.SetPrivKey(txConf.privKey),
+		tester.SetNonce(txConf.nonce),
+		tester.SetConcurrent(concurrent),
+	}
+
+	conf.contract.SetContractAddr(txConf.contractAddr)
+	txBuilrder, err := conf.contract.GenTxBuilder(conf.client, txConf.contractMethod, txConf.contractMethodParams)
 	if err != nil {
 		return nil, err
 	}
@@ -127,15 +107,23 @@ func addGenTxFlags(cmd *cobra.Command) {
 	addSendTxFlags(cmd)
 }
 
-func addSendTxFlags(cmd *cobra.Command) {
-	cmd.Flags().Uint64(flagBatchSize, 10, "number of transactions per batch")
-	cmd.Flags().Bool(flagConcurrent, true, "whether to use concurrent mode,the number of concurrencies is the same as `data-count`")
-	cmd.Flags().Int(flagMaxThreads, 100, "maximum number of threads")
+func addTxFlags(cmd *cobra.Command) {
 	cmd.Flags().String(flagPrivateKey, "", "send the account private key for the transaction")
 	cmd.Flags().Int64(flagNonce, 0, "user's nonce")
 	cmd.Flags().Int64(flagGasFeeCap, 0, "gas fee cap to use for the 1559 transaction execution (nil = gas price oracle,fetch from chain)")
 	cmd.Flags().Int64(flagGasTipCap, 0, "gas priority fee cap to use for the 1559 transaction execution (nil = gas price oracle,fetch from chain)")
 	cmd.Flags().Uint64(flagGasLimit, 0, "gas limit to set for the transaction execution (0 = estimate,fetch from chain)")
+}
+
+func addSendTxFlags(cmd *cobra.Command) {
+	addTxFlags(cmd)
+	cmd.Flags().Uint64(flagBatchSize, 10, "number of transactions per batch")
+	cmd.Flags().Bool(flagConcurrent, false, "whether to use concurrent mode,the number of concurrencies is the same as `data-count`")
+	cmd.Flags().Int(flagMaxThreads, 100, "maximum number of threads")
+	cmd.Flags().String(flagContractMethod, "", "the contract method name being tested")
+	cmd.Flags().StringSlice(flagContractParams, []string{}, "the contract method params being tested")
+	cmd.Flags().String(flagContract, "", "the contract address being tested")
 
 	cmd.MarkFlagRequired(flagContract)
+	cmd.MarkFlagRequired(flagContractMethod)
 }

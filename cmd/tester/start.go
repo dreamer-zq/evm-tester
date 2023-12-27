@@ -5,16 +5,17 @@ import (
 
 	"github.com/spf13/cobra"
 
-	tester "github.com/dreamer-zq/turbo-tester"
-	"github.com/dreamer-zq/turbo-tester/simple"
+	tester "github.com/dreamer-zq/evm-tester"
+	"github.com/dreamer-zq/evm-tester/simple"
 )
 
 var (
-	flagTotalBatch = "run-total-batch"
-	flagSync       = "run-sync"
-	flagRunPeriod  = "run-period"
-	flagUserNum    = "run-user-num"
-	flagSegment    = "run-segment"
+	flagTotalBatch   = "run-total-batch"
+	flagRunPeriod    = "run-period"
+	flagUserNum      = "run-user-num"
+	flagSegment      = "run-segment"
+	flagSendMode     = "send-mode"
+	flagEnableVerify = "enable-verify"
 )
 
 // StartCmd generates a cobra command for sending transaction.
@@ -28,17 +29,17 @@ var (
 // - Retrieves the generator from the command.
 // - Runs the generator with the contract address.
 // Returns the generated cobra command.
-func StartCmd(sampler simple.Sampler) *cobra.Command {
+func StartCmd(manager *simple.Manager) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start",
-		Short: "Generate test data and output to cvs file",
+		Short: "Generate test data and send to the blockchain",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			conf, err := loadGlobalFlags(cmd)
+			conf, err := loadGlobalFlags(cmd, manager)
 			if err != nil {
 				return err
 			}
 
-			tg, err := getGenerator(conf, cmd,sampler)
+			generator, err := getGenerator(conf, cmd)
 			if err != nil {
 				return err
 			}
@@ -48,12 +49,11 @@ func StartCmd(sampler simple.Sampler) *cobra.Command {
 				return err
 			}
 
-			sync, err := cmd.Flags().GetBool(flagSync)
+			sendModeStr, err := cmd.Flags().GetString(flagSendMode)
 			if err != nil {
 				return err
 			}
-
-			segment, err := cmd.Flags().GetBool(flagSegment)
+			sendMode, err := tester.ParseSendMode(sendModeStr)
 			if err != nil {
 				return err
 			}
@@ -73,25 +73,30 @@ func StartCmd(sampler simple.Sampler) *cobra.Command {
 				return err
 			}
 
+			enableVerify, err := cmd.Flags().GetBool(flagEnableVerify)
+			if err != nil {
+				return err
+			}
+
 			transactor := tester.NewTransactor(
 				conf.client,
 				userNum,
-				tg,
+				generator,
+				enableVerify,
 				tester.SetTotalBatch(totalBatch),
-				tester.SetSync(sync),
 				tester.SetEndTime(endTime),
-				tester.SetSegmentStat(segment),
+				tester.SetSendMode(sendMode),
 			)
 			transactor.Run()
 			return nil
 		},
 	}
 	addSendTxFlags(cmd)
-	sampler.AddFlags(cmd)
 	cmd.Flags().Int(flagUserNum, 0, "maximum number of concurrent users")
 	cmd.Flags().Duration(flagRunPeriod, 0, "stress test execution time,eg: 5m")
-	cmd.Flags().Bool(flagSync, false, "whether transaction execution is in synchronous mode")
 	cmd.Flags().Bool(flagSegment, false, "whether to enable segmented statistics requires run-total-batch to be greater than 1")
+	cmd.Flags().Bool(flagEnableVerify, false, "whether to enable verification(transaction)")
 	cmd.Flags().Int64(flagTotalBatch, 0, "total production batches, and `--run-period`, choose one of the two,`totalTxs = totalBatch * count`")
+	cmd.Flags().String(flagSendMode, "parallel", "transaction sending mode, `oneByOne`,`parallel` ,`segment` or `batch`")
 	return cmd
 }

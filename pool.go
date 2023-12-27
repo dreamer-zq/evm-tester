@@ -2,10 +2,10 @@ package tester
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/panjf2000/ants/v2"
-	"golang.org/x/exp/slog"
 )
 
 // Stat is the statistics of the Pool.

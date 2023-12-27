@@ -3,18 +3,60 @@ package tester
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
+	"os/signal"
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/olekukonko/tablewriter"
-	"golang.org/x/exp/slog"
 )
+
+const (
+	// OneByOne represents sending transactions one by one.
+	OneByOne SendMode = "oneByOne"
+	// Parallel represents sending transactions in parallel.
+	Parallel SendMode = "parallel"
+	// Segment represents sending transactions in segments.
+	Segment SendMode = "segment"
+	// Batch represents sending transactions in batches.
+	Batch SendMode = "batch"
+)
+
+// SendMode represents the mode of sending transactions.
+type SendMode string
+
+// ParseSendMode parses the input string and returns the corresponding SendMode
+// constant if it matches one of the defined modes. Otherwise, it returns an
+// error.
+//
+// Parameters:
+// - mode: The input string to be parsed.
+//
+// Return types:
+// - SendMode: The corresponding SendMode constant.
+// - error: An error if the input string does not match any defined modes.
+func ParseSendMode(mode string) (SendMode, error) {
+	switch mode {
+	case string(OneByOne):
+		return OneByOne, nil
+	case string(Parallel):
+		return Parallel, nil
+	case string(Segment):
+		return Segment, nil
+	case string(Batch):
+		return Batch, nil
+	default:
+		return "", fmt.Errorf("invalid send mode: %s", mode)
+	}
+}
 
 // Result represents the result of a transaction.
 type Result struct {
@@ -33,6 +75,13 @@ type BatchResult struct {
 	payloads []*Payload
 }
 
+type tallyItem struct {
+	txHash  common.Hash
+	batchNo int64
+	err     error
+	took    int64
+}
+
 // TransactorOpts is a function that takes in a pointer to a Transactor object
 type TransactorOpts func(*Transactor) *Transactor
 
@@ -43,17 +92,6 @@ type TransactorOpts func(*Transactor) *Transactor
 func SetEndTime(endTime time.Time) TransactorOpts {
 	return func(t *Transactor) *Transactor {
 		t.endTime = endTime
-		return t
-	}
-}
-
-// SetSync sets the sync flag of a Transactor.
-//
-// sync: a boolean indicating whether the Transactor should sync.
-// Returns: a TransactorOpts function that sets the sync flag of a Transactor.
-func SetSync(sync bool) TransactorOpts {
-	return func(t *Transactor) *Transactor {
-		t.sync = sync
 		return t
 	}
 }
@@ -69,12 +107,16 @@ func SetTotalBatch(totalBatch int64) TransactorOpts {
 	}
 }
 
-// SetSegmentStat sets the segmentStat field of the TransactorOpts struct.
+// SetSendMode sets the send mode for the TransactorOpts.
 //
-// It takes a boolean value segmentStat as a parameter and returns a TransactorOpts function.
-func SetSegmentStat(segmentStat bool) TransactorOpts {
+// Parameters:
+// - sendMode: the send mode to be set.
+//
+// Returns:
+// - a function that sets the send mode and returns the Transactor.
+func SetSendMode(sendMode SendMode) TransactorOpts {
 	return func(t *Transactor) *Transactor {
-		t.segmentStat = segmentStat
+		t.sendMode = sendMode
 		return t
 	}
 }
@@ -83,7 +125,6 @@ func SetSegmentStat(segmentStat bool) TransactorOpts {
 type Transactor struct {
 	eth  *ethclient.Client
 	pool *Pool
-	sync bool
 
 	totalBatch int64
 	batchNo    atomic.Int64
@@ -91,13 +132,16 @@ type Transactor struct {
 	endTime    time.Time
 	gen        *TxGenerator
 	batch      chan *BatchResult
+	tallyCh    chan *tallyItem
 	mu         sync.Mutex
+	verifer    *Verifier
 
-	segmentStat bool
-	rs          *Result
-	segments    map[int64]*Result
+	sendMode SendMode
+	rs       *Result
+	segments map[int64]*Result
 
 	producerExit atomic.Bool
+	consumerExit atomic.Bool
 
 	exit chan int
 }
@@ -106,19 +150,21 @@ type Transactor struct {
 //
 // It takes in an ethclient.Client pointer, a Pool pointer, and a TxGenerator pointer as parameters.
 // It returns a pointer to a Transactor.
-func NewTransactor(eth *ethclient.Client, maxConcurrentNum int, gen *TxGenerator, opts ...TransactorOpts) *Transactor {
+func NewTransactor(eth *ethclient.Client, maxConcurrentNum int, gen *TxGenerator, enable bool, opts ...TransactorOpts) *Transactor {
 	transactor := &Transactor{
 		eth:      eth,
 		pool:     NewPool(maxConcurrentNum, "transactor"),
 		rs:       &Result{},
 		gen:      gen,
-		batch:    make(chan *BatchResult, 100),
+		batch:    make(chan *BatchResult, 1000),
+		tallyCh:  make(chan *tallyItem, 5000),
 		exit:     make(chan int),
 		segments: make(map[int64]*Result),
 	}
 	for _, opt := range opts {
 		transactor = opt(transactor)
 	}
+	transactor.verifer = NewVerifier(enable, transactor.eth)
 	return transactor
 }
 
@@ -131,12 +177,19 @@ func NewTransactor(eth *ethclient.Client, maxConcurrentNum int, gen *TxGenerator
 func (t *Transactor) Run() {
 	go t.listenExit()
 	go t.produceTx()
+	go t.startTally()
 	go t.consumeTx()
+	go t.verifer.Start(t.sendMode == Parallel)
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	select {
 	case <-t.exit:
-		t.pool.Close()
-		t.printResult()
+		t.Exit()
+		return
+	case <-sigs: // wait for sigs to quit exit
+		t.Exit()
 		return
 	}
 }
@@ -149,6 +202,17 @@ func (t *Transactor) Stop() {
 	t.exit <- 1
 }
 
+// Exit closes the batch and tallyCh channels, closes the pool, and prints the result.
+//
+// No parameters.
+// No return type.
+func (t *Transactor) Exit() {
+	t.pool.Close()
+	t.printResult()
+	close(t.batch)
+	close(t.tallyCh)
+}
+
 func (t *Transactor) produceTx() {
 	for {
 		// totalTxs is a counter that keeps track of the total number of transactions sent
@@ -156,11 +220,20 @@ func (t *Transactor) produceTx() {
 			t.gen.pool.Close()
 			return
 		}
-		payloads, err := t.gen.Run()
+		payloads, exit, err := t.gen.Run()
 		if err != nil {
-			slog.Error("Failed to generate transaction", "err", err)
-			continue
+			slog.Error("failed to generate transactions", "err", err)
+			break
 		}
+
+		if exit {
+			t.producerExit.Store(true)
+		}
+
+		if len(payloads) == 0 {
+			break
+		}
+
 		batchNo := t.batchNo.Load()
 		slog.Info("produce transactions", "count", len(payloads), "batchNo", batchNo)
 
@@ -180,12 +253,22 @@ func (t *Transactor) consumeTx() {
 	}
 }
 
+func (t *Transactor) startTally() {
+	for item := range t.tallyCh {
+		if item.err == nil {
+			t.verifer.Add(item.txHash)
+		}
+		t.tally(item.batchNo, item.err, item.took)
+	}
+}
+
 func (t *Transactor) listenExit() {
 	tick := time.NewTicker(1 * time.Second)
 	for {
 		<-tick.C
 		t.stopProducer()
 		t.stopConsumer()
+		t.stopVerifier()
 	}
 }
 
@@ -217,7 +300,17 @@ func (t *Transactor) stopProducer() bool {
 }
 
 func (t *Transactor) stopConsumer() {
-	if t.producerExit.Load() && t.rs.TotalTxCount.Load() == t.produceTxs.Load() {
+	if t.producerExit.Load() &&
+		t.rs.TotalTxCount.Load() == t.produceTxs.Load() &&
+		len(t.tallyCh) == 0 {
+		t.consumerExit.Store(true)
+	}
+}
+
+func (t *Transactor) stopVerifier() {
+	if t.producerExit.Load() &&
+		t.consumerExit.Load() &&
+		t.verifer.Finish(t.rs.TotalTxCount.Load()) {
 		t.Stop()
 	}
 }
@@ -232,40 +325,54 @@ func (t *Transactor) sendTx(ctx context.Context, batch *BatchResult) {
 		"startTime", t.rs.StartTime,
 		"pool", t.pool.Stat(),
 	)
-	if t.sync {
-		t.sendTxSync(ctx, batch)
-		return
+	switch t.sendMode {
+	case OneByOne:
+		t.sendTxsSync(ctx, batch)
+		break
+	case Segment:
+		t.sendTxsSegment(ctx, batch)
+		break
+	case Parallel:
+		t.sendTxsParallel(ctx, batch)
+		break
+	case Batch:
+		t.sendTxsBatch(ctx, batch)
+		break
 	}
-
-	if t.segmentStat {
-		t.sendTxSegment(ctx, batch)
-		return
-	}
-
-	t.batchSendTxs(ctx, batch)
 }
 
-func (t *Transactor) sendTxSegment(ctx context.Context, batch *BatchResult) {
+func (t *Transactor) sendTxsParallel(ctx context.Context, batch *BatchResult) {
 	for _, payload := range batch.payloads {
 		txCopy := *payload.Tx
 		t.pool.Submit(func() {
 			begin := time.Now()
 			err := t.eth.SendTransaction(ctx, &txCopy)
-			t.tally(batch.batchNo, err, time.Since(begin).Nanoseconds())
+			t.tallyCh <- &tallyItem{txCopy.Hash(), batch.batchNo, err, time.Since(begin).Nanoseconds()}
+		})
+	}
+}
+
+func (t *Transactor) sendTxsSegment(ctx context.Context, batch *BatchResult) {
+	for _, payload := range batch.payloads {
+		txCopy := *payload.Tx
+		t.pool.Submit(func() {
+			begin := time.Now()
+			err := t.eth.SendTransaction(ctx, &txCopy)
+			t.tallyCh <- &tallyItem{txCopy.Hash(), batch.batchNo, err, time.Since(begin).Nanoseconds()}
 		})
 	}
 	t.pool.Finish()
 }
 
-func (t *Transactor) sendTxSync(ctx context.Context, batch *BatchResult) {
+func (t *Transactor) sendTxsSync(ctx context.Context, batch *BatchResult) {
 	for _, payload := range batch.payloads {
 		begin := time.Now()
 		err := t.eth.SendTransaction(ctx, payload.Tx)
-		t.tally(batch.batchNo, err, time.Since(begin).Nanoseconds())
+		t.tallyCh <- &tallyItem{payload.Tx.Hash(), batch.batchNo, err, time.Since(begin).Nanoseconds()}
 	}
 }
 
-func (t *Transactor) batchSendTxs(ctx context.Context, batch *BatchResult) {
+func (t *Transactor) sendTxsBatch(ctx context.Context, batch *BatchResult) {
 	elems := make([]rpc.BatchElem, 0, len(batch.payloads))
 	for _, payload := range batch.payloads {
 		data, _ := payload.Tx.MarshalBinary()
@@ -282,10 +389,14 @@ func (t *Transactor) batchSendTxs(ctx context.Context, batch *BatchResult) {
 			return
 		}
 		took := time.Since(begin).Nanoseconds()
-		for _, elem := range elems {
-			t.tally(batch.batchNo, elem.Error, took)
+		for i, elem := range elems {
+			hash := batch.payloads[i].Tx.Hash()
+			t.tallyCh <- &tallyItem{hash, batch.batchNo, elem.Error, took}
 		}
 	})
+	if !t.gen.concurrent {
+		t.pool.Finish()
+	}
 }
 
 // tally updates the transaction statistics based on the given error and duration.
@@ -320,7 +431,7 @@ func (t *Transactor) tally(batchNo int64, err error, took int64) {
 	// totalTxs is a counter that keeps track of the total number of transactions sent
 	count(t.rs, err, took)
 	// segmented statistics of the results of each batch
-	if t.totalBatch > 1 && t.segmentStat {
+	if t.totalBatch > 1 && t.sendMode == Segment {
 		rs, ok := t.segments[batchNo]
 		if !ok {
 			rs = &Result{}
@@ -347,7 +458,7 @@ func (t *Transactor) printResult() {
 		}
 		return row
 	}
-	if t.totalBatch > 1 && t.segmentStat {
+	if t.totalBatch > 1 && t.sendMode == Segment {
 		fmt.Println("Output segmented statistics:")
 
 		table := tablewriter.NewWriter(os.Stdout)
