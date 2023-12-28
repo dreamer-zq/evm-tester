@@ -3,12 +3,12 @@ package tester
 import (
 	"sync"
 
-	v2 "github.com/eapache/queue/v2"
+	"container/list"
 )
 
 // Queue is a wrapper of github.com/eapache/queue/v2.Queue
 type Queue[T any] struct {
-	q *v2.Queue[T]
+	q *list.List
 	p *Pool
 	l sync.Mutex
 }
@@ -18,8 +18,9 @@ type Queue[T any] struct {
 // This function does not take any parameters.
 // It returns a pointer to a Queue[T] object.
 func NewQueue[T any]() *Queue[T] {
+	list.New()
 	return &Queue[T]{
-		q: v2.New[T](),
+		q: list.New(),
 		p: NewPool(500, "validator"),
 	}
 }
@@ -32,7 +33,7 @@ func (q *Queue[T]) Add(v T) {
 	q.l.Lock()
 	defer q.l.Unlock()
 
-	q.q.Add(v)
+	q.q.PushBack(v)
 }
 
 // Iterate iterates over the elements of the queue and applies a function to each element.
@@ -45,11 +46,11 @@ func (q *Queue[T]) Iterate(f func(T) bool) {
 	q.l.Lock()
 	defer q.l.Unlock()
 
-	length := q.Length()
-	for i := 0; i < length; i++ {
-		element := q.q.Peek()
-		if f(element) {
-			_ = q.q.Remove()
+	var next *list.Element
+	for e := q.q.Front(); e != nil; e = next {
+		next = e.Next()
+		if f(e.Value.(T)) {
+			q.q.Remove(e)
 		}
 	}
 }
@@ -62,12 +63,12 @@ func (q *Queue[T]) IterateParallel(f func(T) bool) {
 	q.l.Lock()
 	defer q.l.Unlock()
 
-	length := q.Length()
-	for i := 0; i < length; i++ {
-		element := q.q.Peek()
+	var next *list.Element
+	for e := q.q.Front(); e != nil; e = next {
+		next = e.Next()
 		q.p.Submit(func() {
-			if f(element) {
-				_ = q.q.Remove()
+			if f(e.Value.(T)) {
+				q.q.Remove(e)
 			}
 		})
 	}
@@ -75,9 +76,9 @@ func (q *Queue[T]) IterateParallel(f func(T) bool) {
 }
 
 func (q *Queue[T]) Length() int {
-	return q.q.Length()
+	return q.q.Len()
 }
 
 func (q *Queue[T]) IsEmpty() bool {
-	return q.q.Length() == 0
+	return q.Length() == 0
 }

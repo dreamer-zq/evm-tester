@@ -256,7 +256,7 @@ func (t *Transactor) consumeTx() {
 func (t *Transactor) startTally() {
 	for item := range t.tallyCh {
 		if item.err == nil {
-			t.verifer.Add(item.txHash)
+			t.verifer.Add(item.txHash, nil)
 		}
 		t.tally(item.batchNo, item.err, item.took)
 	}
