@@ -258,6 +258,8 @@ func (t *Transactor) startTally() {
 	for item := range t.tallyCh {
 		if item.err == nil {
 			t.verifer.Add(item.txHash, item.verify)
+		} else {
+			slog.Error("failed to send transaction", "err", item.err, "batchNo", item.batchNo, "txHash", item.txHash)
 		}
 		t.tally(item.batchNo, item.err, item.took)
 	}
@@ -445,11 +447,15 @@ func (t *Transactor) tally(batchNo int64, err error, took int64) {
 
 func (t *Transactor) printResult() {
 	header := []string{"BatchNo", "Sample", "Fail", "Transaction/s", "TotalTime", "MinResponseTime", "MaxResponseTime", "AvgResponseTime"}
-	formatResult := func(rs *Result) []string {
+	formatResult := func(rs *Result, total bool) []string {
 		totalTxCount := rs.TotalTxCount.Load()
 		totalTime := rs.EndTime.Sub(rs.StartTime)
+		batch := fmt.Sprintf("%d", rs.Batch)
+		if total {
+			batch = fmt.Sprintf("0~%d", rs.Batch)
+		}
 		row := []string{
-			strconv.FormatInt(rs.Batch, 10),
+			batch,
 			strconv.FormatInt(totalTxCount, 10),
 			strconv.FormatInt(rs.TotalFailedTxCount, 10),
 			strconv.FormatFloat(float64(totalTxCount-rs.TotalFailedTxCount)/totalTime.Seconds(), 'f', 6, 64),
@@ -472,7 +478,7 @@ func (t *Transactor) printResult() {
 			if !ok {
 				continue
 			}
-			table.Append(formatResult(rs))
+			table.Append(formatResult(rs, false))
 		}
 		table.Render()
 	}
@@ -482,6 +488,6 @@ func (t *Transactor) printResult() {
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetHeader(header)
 	table.SetAutoFormatHeaders(false)
-	table.Append(formatResult(t.rs))
+	table.Append(formatResult(t.rs, true))
 	table.Render()
 }

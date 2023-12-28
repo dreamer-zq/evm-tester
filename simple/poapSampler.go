@@ -72,7 +72,7 @@ func (poap *POAPSampler) MethodMap(conn *ethclient.Client) (map[string]Method, e
 	}
 
 	return map[string]Method{
-		"batchMint": &POAPSamplerBatchMintMethod{contract, abi, 1},
+		"batchMint": &POAPSamplerBatchMintMethod{contract, abi, 1, 0},
 	}, nil
 }
 
@@ -86,6 +86,7 @@ type POAPSamplerBatchMintMethod struct {
 	contract *gen.POAP
 	abi      *abi.ABI
 	page     int
+	total    int
 }
 
 // FormatParams formats the params for the POAPSamplerBatchMintMethod Go function.
@@ -114,6 +115,7 @@ func (t *POAPSamplerBatchMintMethod) GenTx(opts *bind.TransactOpts, params ...in
 	}
 	addrs := params[0].([]common.Address)
 	if len(addrs) == 0 {
+		slog.Info("airdrop end", "page", t.page, "total", t.total)
 		return nil, nil, tester.ErrExit
 	}
 	tokenID := new(big.Int).Set(params[1].(*big.Int))
@@ -122,31 +124,32 @@ func (t *POAPSamplerBatchMintMethod) GenTx(opts *bind.TransactOpts, params ...in
 	if err != nil {
 		return nil, nil, err
 	}
-	
+
 	var ids []*big.Int
 	for i := 0; i < len(addrs); i++ {
 		ids = append(ids, tokenID)
 	}
 
 	veirfy := func() (bool, error) {
-		balances,err := t.contract.BalanceOfBatch(&bind.CallOpts{}, addrs, ids)
+		balances, err := t.contract.BalanceOfBatch(&bind.CallOpts{}, addrs, ids)
 		if err != nil {
 			return false, err
 		}
-		
+
 		for i, balance := range balances {
 			bal := balance.Int64()
 			if bal == 0 {
-				return false, nil	
+				return false, nil
 			}
 			if bal > 1 {
-				slog.Info("duplicate airdrop", "address", addrs[i], "balance", bal,"tokenID", tokenID)
+				slog.Info("duplicate airdrop", "address", addrs[i], "balance", bal, "tokenID", tokenID)
 				return false, nil
 			}
 		}
 		return true, nil
 	}
 	t.page++
+	t.page += len(addrs)
 	return tx, veirfy, nil
 }
 

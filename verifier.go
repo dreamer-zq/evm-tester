@@ -110,7 +110,7 @@ func (v *Verifier) Start(parallelable bool) {
 		return true
 	}
 	for range v.timer.C {
-		slog.Info("verify transactions", "left", v.queue.Length())
+		slog.Info("execute to verify logic", "left", v.queue.Length())
 		if !parallelable {
 			v.queue.Iterate(validate)
 		} else {
