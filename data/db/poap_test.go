@@ -21,13 +21,13 @@ func TestAccounts_AddressPageQuery(t *testing.T) {
 			name: "test",
 			args: args{
 				limit:  300,
-				page: 1,
+				page: 62,
 			},
 			wantErr: false,
 		},
 	}
 	
-	_,err := Connect("root:rootPassword@tcp(192.168.0.136:3306)/sig_turbo_tianzhou")
+	_,err := Connect("root:rootPassword@tcp(192.168.150.40:23306)/sig_turbo_tianzhou")
 	require.NoError(t, err, "connect db error")
 
 	for _, tt := range tests {

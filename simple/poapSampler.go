@@ -50,10 +50,10 @@ func (poap *POAPSampler) GenTxBuilder(conn *ethclient.Client, method string, par
 	}
 	contractParams := params[1:]
 
-	return func(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return func(opts *bind.TransactOpts) (*types.Transaction, tester.Verify, error) {
 		p, err := m.FormatParams(contractParams)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		return m.GenTx(opts, p...)
 	}, nil
@@ -108,20 +108,46 @@ func (t *POAPSamplerBatchMintMethod) FormatParams(params []string) ([]interface{
 }
 
 // GenTx generates a transaction for the POAPSamplerBatchMintMethod Go function.
-func (t *POAPSamplerBatchMintMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error) {
+func (t *POAPSamplerBatchMintMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verify, error) {
 	if len(params) != 2 {
-		return nil, errors.New("invalid contract params")
+		return nil, nil, errors.New("invalid contract params")
 	}
 	addrs := params[0].([]common.Address)
 	if len(addrs) == 0 {
-		return nil, tester.ErrExit
+		return nil, nil, tester.ErrExit
 	}
-	tx, err := t.contract.BatchMint(opts, addrs, params[1].(*big.Int))
+	tokenID := new(big.Int).Set(params[1].(*big.Int))
+
+	tx, err := t.contract.BatchMint(opts, addrs, tokenID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	
+	var ids []*big.Int
+	for i := 0; i < len(addrs); i++ {
+		ids = append(ids, tokenID)
+	}
+
+	veirfy := func() (bool, error) {
+		balances,err := t.contract.BalanceOfBatch(&bind.CallOpts{}, addrs, ids)
+		if err != nil {
+			return false, err
+		}
+		
+		for i, balance := range balances {
+			bal := balance.Int64()
+			if bal == 0 {
+				return false, nil	
+			}
+			if bal > 1 {
+				slog.Info("duplicate airdrop", "address", addrs[i], "balance", bal,"tokenID", tokenID)
+				return false, nil
+			}
+		}
+		return true, nil
 	}
 	t.page++
-	return tx, nil
+	return tx, veirfy, nil
 }
 
 // Display implements Method.

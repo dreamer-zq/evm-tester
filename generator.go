@@ -21,9 +21,10 @@ var ErrExit = errors.New("exit")
 
 // Payload is a struct that contains the raw transaction and the chain ID.
 type Payload struct {
-	Tx      *types.Transaction `csv:"-"`
-	RawTx   string             `csv:"raw_tx"`
-	ChainID string             `csv:"chain_id"`
+	VerifyFn Verify             `csv:"-"`
+	Tx       *types.Transaction `csv:"-"`
+	RawTx    string             `csv:"raw_tx"`
+	ChainID  string             `csv:"chain_id"`
 }
 
 // Option is a function type that can be used to configure the TxGenerator.
@@ -114,7 +115,7 @@ func SetPrivKey(privKey *ecdsa.PrivateKey) Option {
 }
 
 // CreateTx is a function type that can create or send transactions.
-type CreateTx func(opts *bind.TransactOpts) (*types.Transaction, error)
+type CreateTx func(opts *bind.TransactOpts) (*types.Transaction, Verify, error)
 
 // TxGenerator generates transactions for the TicketGame contract.
 type TxGenerator struct {
@@ -197,7 +198,7 @@ func (tg *TxGenerator) Run() ([]*Payload, bool, error) {
 // Returns:
 // - The hexadecimal representation of the generated transaction.
 func (tg *TxGenerator) GenTx(sender *ecdsa.PrivateKey, senderNonce *big.Int) (*Payload, error) {
-	rawTransaction, err := tg.genTx(sender, senderNonce)
+	rawTransaction, verifyFn, err := tg.genTx(sender, senderNonce)
 	if err != nil {
 		return nil, err
 	}
@@ -207,17 +208,18 @@ func (tg *TxGenerator) GenTx(sender *ecdsa.PrivateKey, senderNonce *big.Int) (*P
 		return nil, errors.Wrap(err, "failed to marshal transaction")
 	}
 	return &Payload{
-		Tx:      rawTransaction,
-		RawTx:   hexutil.Bytes(txbz).String(),
-		ChainID: tg.chainID.String(),
+		VerifyFn: verifyFn,
+		Tx:       rawTransaction,
+		RawTx:    hexutil.Bytes(txbz).String(),
+		ChainID:  tg.chainID.String(),
 	}, nil
 }
 
-func (tg *TxGenerator) genTx(sender *ecdsa.PrivateKey, senderNonce *big.Int) (*types.Transaction, error) {
+func (tg *TxGenerator) genTx(sender *ecdsa.PrivateKey, senderNonce *big.Int) (*types.Transaction, Verify, error) {
 	// Create an authorized transactor and call the store function
 	auth, err := bind.NewKeyedTransactorWithChainID(sender, tg.chainID)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create authorized transactor")
+		return nil, nil, errors.Wrap(err, "failed to create authorized transactor")
 	}
 	auth.NoSend = true
 	auth.Nonce = senderNonce
@@ -229,11 +231,11 @@ func (tg *TxGenerator) genTx(sender *ecdsa.PrivateKey, senderNonce *big.Int) (*t
 	header.Add("X-Chain", tg.chainID.String())
 	auth.Context = rpc.NewContextWithHeaders(context.Background(), header)
 
-	rawTransaction, err := tg.createTx(auth)
+	rawTransaction, verifyFn, err := tg.createTx(auth)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return rawTransaction, nil
+	return rawTransaction, verifyFn, nil
 }
 
 // BatchGenTxs generates a batch of transactions using the given sender's private key, sender's nonce, batch size, and player address.

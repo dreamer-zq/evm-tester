@@ -42,10 +42,10 @@ func (tgs *ETicketSampler) GenTxBuilder(conn *ethclient.Client, method string, p
 		return nil, errors.New("invalid method")
 	}
 
-	return func(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return func(opts *bind.TransactOpts) (*types.Transaction, tester.Verify, error) {
 		p, err := m.FormatParams(params)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		return m.GenTx(opts, p...)
 	}, nil
@@ -129,17 +129,17 @@ func (t *ETicketSamplerMintMethod) FormatParams(params []string) ([]interface{},
 // - params: a variadic parameter that can take in any number of arguments.
 //
 // It returns a *types.Transaction object and an error.
-func (t *ETicketSamplerMintMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error) {
+func (t *ETicketSamplerMintMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verify, error) {
 	if len(params) != 2 {
-		return nil, errors.New("invalid contract params")
+		return nil, nil, errors.New("invalid contract params")
 	}
 	tokenID := params[1].(*big.Int)
 	tx, err := t.contract.Mint(opts, params[0].(common.Address), tokenID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	t.tokenNext = new(big.Int).Add(big.NewInt(tokenID.Int64()), new(big.Int).SetUint64(1))
-	return tx, nil
+	return tx, nil, nil
 }
 
 // Display returns a string representation of the ETicketSamplerMintMethod.
@@ -179,11 +179,15 @@ func (t ETicketSamplerTranferMethod) FormatParams(params []string) ([]interface{
 // - params: a variadic parameter that can take in any number of arguments.
 //
 // It returns a *types.Transaction object and an error.
-func (t ETicketSamplerTranferMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error) {
+func (t ETicketSamplerTranferMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verify, error) {
 	if len(params) != 3 {
-		return nil, errors.New("invalid contract params")
+		return nil, nil, errors.New("invalid contract params")
 	}
-	return t.contract.SafeTransferFrom(opts, params[0].(common.Address), params[1].(common.Address), params[2].(*big.Int))
+	tx, err := t.contract.SafeTransferFrom(opts, params[0].(common.Address), params[1].(common.Address), params[2].(*big.Int))
+	if err != nil {
+		return nil, nil, err
+	}
+	return tx, nil, nil
 }
 
 // Display returns a string representing the ETicketSamplerTranferMethod.

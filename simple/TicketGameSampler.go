@@ -44,7 +44,7 @@ func (tgs *TicketGameSampler) GenTxBuilder(conn *ethclient.Client, method string
 		return nil, err
 	}
 
-	return func(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return func(opts *bind.TransactOpts) (*types.Transaction, tester.Verify, error) {
 		return m.GenTx(opts, p...)
 	}, nil
 }
@@ -77,8 +77,8 @@ func (tgs *TicketGameSampler) MethodMap(conn *ethclient.Client) (map[string]Meth
 	}
 
 	return map[string]Method{
-		"redeem":      TicketGameSamplerRedeemMethod{ticker,abi},
-		"batchRedeem": TicketGameSamplerBatchRedeemMethod{ticker,abi},
+		"redeem":      TicketGameSamplerRedeemMethod{ticker, abi},
+		"batchRedeem": TicketGameSamplerBatchRedeemMethod{ticker, abi},
 	}, nil
 }
 
@@ -108,13 +108,17 @@ func (t TicketGameSamplerRedeemMethod) FormatParams(params []string) ([]interfac
 //   - params: The parameters required for redeeming the ticket.
 //
 // It returns a transaction object (*types.Transaction) and an error object (error).
-func (t TicketGameSamplerRedeemMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error) {
+func (t TicketGameSamplerRedeemMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verify, error) {
 	if len(params) != 2 {
-		return nil, errors.New("invalid contract params")
+		return nil, nil, errors.New("invalid contract params")
 	}
 	player := params[0].(common.Address)
 	tokenURI := params[1].(string)
-	return t.contract.Redeem(opts, player, tokenURI)
+	tx, err := t.contract.Redeem(opts, player, tokenURI)
+	if err != nil {
+		return nil, nil, err
+	}
+	return tx, nil, nil
 }
 
 // Display returns the string representation of the TicketGameSamplerRedeemMethod.
@@ -160,13 +164,18 @@ func (t TicketGameSamplerBatchRedeemMethod) FormatParams(params []string) ([]int
 // - params: A variadic parameter list that represents the player addresses and token URIs.
 //
 // It returns a transaction object and an error.
-func (t TicketGameSamplerBatchRedeemMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, error) {
+func (t TicketGameSamplerBatchRedeemMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verify, error) {
 	if len(params) != 2 {
-		return nil, errors.New("invalid contract params")
+		return nil, nil, errors.New("invalid contract params")
 	}
 	player := params[0].([]common.Address)
 	tokenURI := params[1].([]string)
-	return t.contract.BatchRedeem(opts, player, tokenURI)
+
+	tx, err := t.contract.BatchRedeem(opts, player, tokenURI)
+	if err != nil {
+		return nil, nil, err
+	}
+	return tx, nil, nil
 }
 
 // Display returns the string representation of the TicketGameSamplerBatchRedeemMethod.

@@ -79,6 +79,7 @@ type tallyItem struct {
 	txHash  common.Hash
 	batchNo int64
 	err     error
+	verify  Verify
 	took    int64
 }
 
@@ -256,7 +257,7 @@ func (t *Transactor) consumeTx() {
 func (t *Transactor) startTally() {
 	for item := range t.tallyCh {
 		if item.err == nil {
-			t.verifer.Add(item.txHash, nil)
+			t.verifer.Add(item.txHash, item.verify)
 		}
 		t.tally(item.batchNo, item.err, item.took)
 	}
@@ -347,7 +348,7 @@ func (t *Transactor) sendTxsParallel(ctx context.Context, batch *BatchResult) {
 		t.pool.Submit(func() {
 			begin := time.Now()
 			err := t.eth.SendTransaction(ctx, &txCopy)
-			t.tallyCh <- &tallyItem{txCopy.Hash(), batch.batchNo, err, time.Since(begin).Nanoseconds()}
+			t.tallyCh <- &tallyItem{txCopy.Hash(), batch.batchNo, err, payload.VerifyFn, time.Since(begin).Nanoseconds()}
 		})
 	}
 }
@@ -358,7 +359,7 @@ func (t *Transactor) sendTxsSegment(ctx context.Context, batch *BatchResult) {
 		t.pool.Submit(func() {
 			begin := time.Now()
 			err := t.eth.SendTransaction(ctx, &txCopy)
-			t.tallyCh <- &tallyItem{txCopy.Hash(), batch.batchNo, err, time.Since(begin).Nanoseconds()}
+			t.tallyCh <- &tallyItem{txCopy.Hash(), batch.batchNo, err, payload.VerifyFn, time.Since(begin).Nanoseconds()}
 		})
 	}
 	t.pool.Finish()
@@ -368,7 +369,7 @@ func (t *Transactor) sendTxsSync(ctx context.Context, batch *BatchResult) {
 	for _, payload := range batch.payloads {
 		begin := time.Now()
 		err := t.eth.SendTransaction(ctx, payload.Tx)
-		t.tallyCh <- &tallyItem{payload.Tx.Hash(), batch.batchNo, err, time.Since(begin).Nanoseconds()}
+		t.tallyCh <- &tallyItem{payload.Tx.Hash(), batch.batchNo, err, payload.VerifyFn, time.Since(begin).Nanoseconds()}
 	}
 }
 
@@ -391,7 +392,8 @@ func (t *Transactor) sendTxsBatch(ctx context.Context, batch *BatchResult) {
 		took := time.Since(begin).Nanoseconds()
 		for i, elem := range elems {
 			hash := batch.payloads[i].Tx.Hash()
-			t.tallyCh <- &tallyItem{hash, batch.batchNo, elem.Error, took}
+			verify := batch.payloads[i].VerifyFn
+			t.tallyCh <- &tallyItem{hash, batch.batchNo, elem.Error, verify, took}
 		}
 	})
 	if !t.gen.concurrent {
