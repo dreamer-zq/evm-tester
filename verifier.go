@@ -16,36 +16,78 @@ const (
 )
 
 type element struct {
-	verify        Verify
-	hash          string
+	id       string
+	verifier Verifier
+
 	failedCounter int32
 	next          time.Time
 }
 
 type record struct {
-	Hash   string `csv:"hash"`
+	ID     string `csv:"id"`
 	Status string `csv:"status"`
 }
 
 // Verify is the verification function.
 type Verify func() (success bool, err error)
 
-// Verifier is a struct that verifies the hashes in the queue.
-type Verifier struct {
+// Verifier is the interface that verifies the hashes in the queue.
+type Verifier interface {
+	ID() string
+	Verify() (success bool, err error)
+}
+
+// GenericVerifier is a struct that implements the Verifier interface.
+type GenericVerifier struct {
+	id     string
+	verify Verify
+}
+
+// NewGenericVerifier creates a new instance of GenericVerifier.
+//
+// Parameters:
+// - id: The identifier for the verifier.
+// - verify: The verification function.
+//
+// Returns:
+// - GenericVerifier: The newly created instance of GenericVerifier.
+func NewGenericVerifier(id string, verify Verify) GenericVerifier {
+	return GenericVerifier{id, verify}
+}
+
+// ID returns the ID of the GenericVerifier.
+//
+// No parameters.
+// Returns a string.
+func (gv GenericVerifier) ID() string {
+	return gv.id
+}
+
+// Verify verifies the GenericVerifier.
+//
+// It returns a boolean value indicating whether the verification was successful or not,
+// and an error if any error occurred during the verification process.
+func (gv GenericVerifier) Verify() (bool, error) {
+	return gv.verify()
+}
+
+// VerifierManager is a struct that verifies the hashes in the queue.
+type VerifierManager struct {
 	enable  bool
 	queue   *Queue[*element]
 	timer   *time.Ticker
 	eth     *ethclient.Client
 	records []*record
+	running bool
 }
 
-// NewVerifier creates a new Verifier instance.
+// NewVerifierManager creates a new Verifier instance.
 //
 // enable: a boolean indicating whether the Verifier is enabled.
 // eth: an instance of ethclient.Client used for interacting with the Ethereum blockchain.
 // Returns a pointer to the newly created Verifier instance.
-func NewVerifier(enable bool, eth *ethclient.Client) *Verifier {
-	return &Verifier{
+func NewVerifierManager(enable bool, eth *ethclient.Client) *VerifierManager {
+	return &VerifierManager{
 		enable: enable,
 		queue:  NewQueue[*element](),
 		timer:  time.NewTicker(period),
@@ -59,32 +101,35 @@ func NewVerifier(enable bool, eth *ethclient.Client) *Verifier {
 // the function adds a new element to the queue with the provided hash and verify function.
 // If the verify function is nil, it uses the defaultVerifyFn of the Verifier for verification.
 // The element is added only if the Verifier is enabled.
-func (v *Verifier) Add(hash common.Hash, verify Verify) {
-	if v.enable {
-		if verify == nil {
-			verify = v.defaultVerifyFn(hash)
+func (vm *VerifierManager) Add(verifier Verifier) {
+	if vm.enable {
+		if verifier == nil {
+			return
 		}
-		v.queue.Add(&element{
-			verify: verify,
-			hash:   hash.Hex(),
-			next:   time.Now().Add(period),
+		vm.queue.Add(&element{
+			verifier: verifier,
+			id:       verifier.ID(),
+			next:     time.Now().Add(period),
 		})
 	}
 }
 
-// Start verifies the Verifier.
+
+// Start starts the VerifierManager.
 //
-// parallelable is a boolean indicating whether the verification is parallelizable.
-// It does not return anything.
-func (v *Verifier) Start(parallelable bool) {
-	if !v.enable {
+// It validates the elements in the VerifierManager and updates the records accordingly.
+// It uses a timer to periodically execute the validation logic.
+// If the VerifierManager is disabled, the function returns immediately.
+// The function has no parameters and does not return any values.
+func (vm *VerifierManager) Start() {
+	if !vm.enable {
 		return
 	}
 
 	validate := func(ele *element) bool {
 		if ele.failedCounter >= maxFailedCounter {
-			v.records = append(v.records, &record{
-				Hash:   ele.hash,
+			vm.records = append(vm.records, &record{
+				ID:     ele.id,
 				Status: "failed",
 			})
 			return true
@@ -93,29 +138,31 @@ func (v *Verifier) Start(parallelable bool) {
 		if now.Second() < ele.next.Second() {
 			return false
 		}
-		success, err := ele.verify()
+		success, err := ele.verifier.Verify()
 		if err != nil {
 			ele.failedCounter++
 			ele.next = ele.next.Add(time.Duration(ele.failedCounter) * period)
 			return false
 		}
 		record := &record{
-			Hash:   ele.hash,
+			ID:     ele.id,
 			Status: "failed",
 		}
 		if success {
 			record.Status = "success"
 		}
-		v.records = append(v.records, record)
+		vm.records = append(vm.records, record)
 		return true
 	}
-	for range v.timer.C {
-		slog.Info("execute to verify logic", "left", v.queue.Length())
-		if !parallelable {
-			v.queue.Iterate(validate)
-		} else {
-			v.queue.IterateParallel(validate)
+	for range vm.timer.C {
+		if vm.running {
+			continue
 		}
+		vm.running = true
+
+		slog.Info("execute to verify logic", "left", vm.queue.Length())
+		vm.queue.Iterate(validate)
+		vm.running = false
 	}
 }
 
@@ -123,24 +170,26 @@ func (v *Verifier) Start(parallelable bool) {
 //
 // It returns true if the Verifier is not enabled or if the queue length is zero,
 // otherwise it returns false.
-func (v *Verifier) Finish(total int64) bool {
-	if !v.enable {
+func (vm *VerifierManager) Finish(total int64) bool {
+	if !vm.enable {
 		return true
 	}
-	if v.queue.IsEmpty() && int64(len(v.records)) == total {
-		v.timer.Stop()
-		SaveToCSV("./result.csv", v.records)
+	slog.Info("verify finished?", "left", vm.queue.Length(), "total", total, "records", len(vm.records))
+	if vm.queue.IsEmpty() && int64(len(vm.records)) == total {
+		vm.timer.Stop()
+		SaveToCSV("./result.csv", vm.records)
 		return true
 	}
 	return false
 }
 
-func (v *Verifier) defaultVerifyFn(hash common.Hash) Verify {
-	return func() (success bool, err error) {
-		receipt, err := v.eth.TransactionReceipt(context.Background(), hash)
+func (vm *VerifierManager) defaultVerifyFn(hash common.Hash) Verifier {
+	verify := func() (bool, error) {
+		receipt, err := vm.eth.TransactionReceipt(context.Background(), hash)
 		if err != nil || receipt == nil {
 			return false, errors.New("get transaction receipt error")
 		}
 		return true, nil
 	}
+	return NewGenericVerifier(hash.Hex(), verify)
 }

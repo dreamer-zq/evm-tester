@@ -48,6 +48,7 @@ func loadGlobalFlags(cmd *cobra.Command, manager *simple.Manager) (*GlobalConfig
 		return nil, errors.Wrap(err, "failed to connect to the Ethereum client")
 	}
 
+
 	return &GlobalConfig{
 		chainID:  big.NewInt(chainIDInt),
 		url:      url,
@@ -58,94 +59,105 @@ func loadGlobalFlags(cmd *cobra.Command, manager *simple.Manager) (*GlobalConfig
 
 // TransactionConfig represents a transaction config
 type TransactionConfig struct {
-	gasLimit  uint64
-	gasFeeCap *big.Int
-	gasTipCap *big.Int
-	nonce     int64
-	privKey   *ecdsa.PrivateKey
-
-	contractAddr         common.Address
-	contractMethod       string
-	contractMethodParams []string
-	batchSize            uint64
+	gasLimit   uint64
+	gasFeeCap  *big.Int
+	gasTipCap  *big.Int
+	nonce      int64
+	privKey    *ecdsa.PrivateKey
+	batchSize  uint64
+	callConfig *ContractCallConfig
 }
 
-func loadTransactionFlags(cmd *cobra.Command, client *ethclient.Client) (*TransactionConfig, error) {
-	batchSize, err := cmd.Flags().GetUint64(flagBatchSize)
+func (tc *TransactionConfig) load(cmd *cobra.Command, client *ethclient.Client) (err error) {
+	tc.batchSize, err = cmd.Flags().GetUint64(flagBatchSize)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	gasLimit, err := cmd.Flags().GetUint64(flagGasLimit)
+	tc.gasLimit, err = cmd.Flags().GetUint64(flagGasLimit)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	gasFeeCap, err := cmd.Flags().GetInt64(flagGasFeeCap)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	tc.gasFeeCap = big.NewInt(gasFeeCap)
 
 	gasTipCap, err := cmd.Flags().GetInt64(flagGasTipCap)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	tc.gasTipCap = big.NewInt(gasTipCap)
 
 	privKeyStr, err := cmd.Flags().GetString(flagPrivateKey)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	var privKey *ecdsa.PrivateKey
 	if privKeyStr != "" {
 		privKeyStr = strings.TrimPrefix(privKeyStr, "0x")
-		privKey, err = crypto.HexToECDSA(privKeyStr)
+		tc.privKey, err = crypto.HexToECDSA(privKeyStr)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	nonce, err := cmd.Flags().GetInt64(flagNonce)
+	tc.nonce, err = cmd.Flags().GetInt64(flagNonce)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	if privKey != nil {
-		senderAddr := crypto.PubkeyToAddress(privKey.PublicKey)
-		if nonce == 0 {
+	if tc.privKey != nil {
+		senderAddr := crypto.PubkeyToAddress(tc.privKey.PublicKey)
+		if tc.nonce == 0 {
 			nonceAct, err := client.NonceAt(context.Background(), senderAddr, nil)
 			if err != nil {
-				return nil, err
+				return err
 			}
-			nonce = int64(nonceAct)
+			tc.nonce = int64(nonceAct)
 		}
 	}
 
-	method, err := cmd.Flags().GetString(flagContractMethod)
-	if err != nil {
-		return nil, err
+	var callConfig = &ContractCallConfig{}
+	if err := callConfig.load(cmd); err != nil {
+		return err
 	}
+	tc.callConfig = callConfig
+	return nil
+}
 
-	contractParams, err := cmd.Flags().GetStringSlice(flagContractParams)
+// ContractCallConfig represents a contract config
+type ContractCallConfig struct {
+	addr         common.Address
+	method       string
+	methodParams []string
+}
+
+func (cc *ContractCallConfig) load(cmd *cobra.Command) (err error) {
+	cc.methodParams, err = cmd.Flags().GetStringSlice(flagContractParams)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	contractAddrStr, err := cmd.Flags().GetString(flagContract)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	contractAddr := common.HexToAddress(contractAddrStr)
+	cc.addr = common.HexToAddress(contractAddrStr)
+	cc.method, err = cmd.Flags().GetString(flagContractMethod)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
-	return &TransactionConfig{
-		gasLimit:             gasLimit,
-		gasFeeCap:            big.NewInt(gasFeeCap),
-		gasTipCap:            big.NewInt(gasTipCap),
-		nonce:                nonce,
-		privKey:              privKey,
-		contractAddr:         contractAddr,
-		contractMethod:       method,
-		contractMethodParams: contractParams,
-		batchSize:            batchSize,
-	}, nil
+func (cc ContractCallConfig) bindFlags(cmd *cobra.Command) {
+	cmd.Flags().String(flagContractMethod, "", "the contract method name being tested")
+	cmd.Flags().StringSlice(flagContractParams, []string{}, "the contract method params being tested")
+	cmd.Flags().String(flagContract, "", "the contract address being tested")
+
+	cmd.MarkFlagRequired(flagContract)
+	cmd.MarkFlagRequired(flagContractMethod)
 }

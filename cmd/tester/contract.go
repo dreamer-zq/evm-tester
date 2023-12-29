@@ -23,6 +23,7 @@ func NewContractCmd() *cobra.Command {
 	contractCmd.AddCommand(MethodsCmd(manager))
 	contractCmd.AddCommand(GentxCmd(manager))
 	contractCmd.AddCommand(StartCmd(manager))
+	contractCmd.AddCommand(VerifyCmd(manager))
 
 	contractCmd.PersistentFlags().String(flagURL, "", "turbo endpoint url")
 	contractCmd.PersistentFlags().String(flagName, "eTicket", "contract name")

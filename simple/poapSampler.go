@@ -1,8 +1,11 @@
 package simple
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -50,7 +53,7 @@ func (poap *POAPSampler) GenTxBuilder(conn *ethclient.Client, method string, par
 	}
 	contractParams := params[1:]
 
-	return func(opts *bind.TransactOpts) (*types.Transaction, tester.Verify, error) {
+	return func(opts *bind.TransactOpts) (*types.Transaction, tester.Verifier, error) {
 		p, err := m.FormatParams(contractParams)
 		if err != nil {
 			return nil, nil, err
@@ -105,12 +108,12 @@ func (t *POAPSamplerBatchMintMethod) FormatParams(params []string) ([]interface{
 		return nil, err
 	}
 	slog.Info("build transaction", "tokenID", tokenID, "offset", offset, "page", t.page, "pageSize", pageSize, "len", len(addrs))
-	return []interface{}{addrs.Address(), tokenID}, nil
+	return []interface{}{addrs.Address(), tokenID, offset}, nil
 }
 
 // GenTx generates a transaction for the POAPSamplerBatchMintMethod Go function.
-func (t *POAPSamplerBatchMintMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verify, error) {
-	if len(params) != 2 {
+func (t *POAPSamplerBatchMintMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verifier, error) {
+	if len(params) != 3 {
 		return nil, nil, errors.New("invalid contract params")
 	}
 	addrs := params[0].([]common.Address)
@@ -130,9 +133,70 @@ func (t *POAPSamplerBatchMintMethod) GenTx(opts *bind.TransactOpts, params ...in
 		ids = append(ids, tokenID)
 	}
 
-	veirfy := func() (bool, error) {
-		balances, err := t.contract.BalanceOfBatch(&bind.CallOpts{}, addrs, ids)
+	id := fmt.Sprintf("%s-%d", tx.Hash().Hex(), params[2].(int))
+	veirfy := t.genVerifier(id, addrs, ids)
+	t.page++
+	t.total += len(addrs)
+	return tx, veirfy, nil
+}
+
+// GenVerifier generates a verifier for the POAPSamplerBatchMintMethod type.
+//
+// It takes an array of strings called params as a parameter.
+// It returns an array of tester.Verify and an error.
+func (t *POAPSamplerBatchMintMethod) GenVerifier(params []string) ([]tester.Verifier, error) {
+	var (
+		page      = 1
+		verifiers []tester.Verifier
+	)
+	_, err := db.Connect(params[0])
+	if err != nil {
+		return nil, err
+	}
+
+	tokenID, ok := new(big.Int).SetString(params[1], 10)
+	if !ok {
+		return nil, errors.New("invalid contract params tokenID")
+	}
+	for {
+		offset := (page - 1) * pageSize
+		addrs, err := db.Accounts{}.AddressPageQuery(pageSize, offset)
 		if err != nil {
+			return nil, err
+		}
+		if len(addrs) == 0 {
+			break
+		}
+
+		var ids []*big.Int
+		for i := 0; i < len(addrs); i++ {
+			ids = append(ids, tokenID)
+		}
+		id := fmt.Sprintf("offset-%d", offset)
+		verifiers = append(verifiers, t.genVerifier(id, addrs.Address(), ids))
+		page++
+	}
+	return verifiers, nil
+}
+
+// Display returns a string representing the "batchMint" method of the POAPSamplerBatchMintMethod type.
+//
+// No parameters.
+// Returns a string.
+func (t *POAPSamplerBatchMintMethod) Display() string {
+	return t.abi.Methods["batchMint"].String()
+}
+
+func (t *POAPSamplerBatchMintMethod) genVerifier(id string, addrs []common.Address, ids []*big.Int) tester.Verifier {
+	verify := func() (bool, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+		
+		balances, err := t.contract.BalanceOfBatch(&bind.CallOpts{
+			Context: ctx,
+		}, addrs, ids)
+		if err != nil {
+			slog.Info("call BalanceOfBatch failed", "id", id,"err", err)
 			return false, err
 		}
 
@@ -142,18 +206,11 @@ func (t *POAPSamplerBatchMintMethod) GenTx(opts *bind.TransactOpts, params ...in
 				return false, nil
 			}
 			if bal > 1 {
-				slog.Info("duplicate airdrop", "address", addrs[i], "balance", bal, "tokenID", tokenID)
+				slog.Info("duplicate airdrop", "address", addrs[i], "balance", bal, "tokenID", ids[i].String())
 				return false, nil
 			}
 		}
 		return true, nil
 	}
-	t.page++
-	t.page += len(addrs)
-	return tx, veirfy, nil
-}
-
-// Display implements Method.
-func (t *POAPSamplerBatchMintMethod) Display() string {
-	return t.abi.Methods["batchMint"].String()
+	return tester.NewGenericVerifier(id, verify)
 }

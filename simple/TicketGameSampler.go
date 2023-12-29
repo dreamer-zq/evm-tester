@@ -44,7 +44,7 @@ func (tgs *TicketGameSampler) GenTxBuilder(conn *ethclient.Client, method string
 		return nil, err
 	}
 
-	return func(opts *bind.TransactOpts) (*types.Transaction, tester.Verify, error) {
+	return func(opts *bind.TransactOpts) (*types.Transaction, tester.Verifier, error) {
 		return m.GenTx(opts, p...)
 	}, nil
 }
@@ -108,7 +108,7 @@ func (t TicketGameSamplerRedeemMethod) FormatParams(params []string) ([]interfac
 //   - params: The parameters required for redeeming the ticket.
 //
 // It returns a transaction object (*types.Transaction) and an error object (error).
-func (t TicketGameSamplerRedeemMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verify, error) {
+func (t TicketGameSamplerRedeemMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verifier, error) {
 	if len(params) != 2 {
 		return nil, nil, errors.New("invalid contract params")
 	}
@@ -164,7 +164,7 @@ func (t TicketGameSamplerBatchRedeemMethod) FormatParams(params []string) ([]int
 // - params: A variadic parameter list that represents the player addresses and token URIs.
 //
 // It returns a transaction object and an error.
-func (t TicketGameSamplerBatchRedeemMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verify, error) {
+func (t TicketGameSamplerBatchRedeemMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verifier, error) {
 	if len(params) != 2 {
 		return nil, nil, errors.New("invalid contract params")
 	}

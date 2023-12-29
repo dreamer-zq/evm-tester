@@ -67,8 +67,8 @@ func getGenerator(conf *GlobalConfig, cmd *cobra.Command) (*tester.TxGenerator, 
 		return nil, err
 	}
 
-	txConf, err := loadTransactionFlags(cmd, conf.client)
-	if err != nil {
+	txConf := &TransactionConfig{}
+	if err := txConf.load(cmd, conf.client); err != nil {
 		return nil, err
 	}
 
@@ -87,8 +87,8 @@ func getGenerator(conf *GlobalConfig, cmd *cobra.Command) (*tester.TxGenerator, 
 		tester.SetConcurrent(concurrent),
 	}
 
-	conf.contract.SetContractAddr(txConf.contractAddr)
-	txBuilrder, err := conf.contract.GenTxBuilder(conf.client, txConf.contractMethod, txConf.contractMethodParams)
+	conf.contract.SetContractAddr(txConf.callConfig.addr)
+	txBuilrder, err := conf.contract.GenTxBuilder(conf.client, txConf.callConfig.method, txConf.callConfig.methodParams)
 	if err != nil {
 		return nil, err
 	}

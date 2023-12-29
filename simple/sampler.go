@@ -20,6 +20,12 @@ type Contract interface {
 // Method is an interface that defines the Call method.
 type Method interface {
 	FormatParams(params []string) ([]interface{}, error)
-	GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction,tester.Verify ,error)
+	GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction,tester.Verifier ,error)
 	Display() string
+}
+
+// MethodVerifiable is an interface that defines the Verifiers method.
+type MethodVerifiable interface{
+	Method
+	GenVerifier(params []string) ([]tester.Verifier, error)
 }

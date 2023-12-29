@@ -79,7 +79,7 @@ type tallyItem struct {
 	txHash  common.Hash
 	batchNo int64
 	err     error
-	verify  Verify
+	verify  Verifier
 	took    int64
 }
 
@@ -135,7 +135,7 @@ type Transactor struct {
 	batch      chan *BatchResult
 	tallyCh    chan *tallyItem
 	mu         sync.Mutex
-	verifer    *Verifier
+	verifer    *VerifierManager
 
 	sendMode SendMode
 	rs       *Result
@@ -165,7 +165,7 @@ func NewTransactor(eth *ethclient.Client, maxConcurrentNum int, gen *TxGenerator
 	for _, opt := range opts {
 		transactor = opt(transactor)
 	}
-	transactor.verifer = NewVerifier(enable, transactor.eth)
+	transactor.verifer = NewVerifierManager(enable, transactor.eth)
 	return transactor
 }
 
@@ -180,7 +180,7 @@ func (t *Transactor) Run() {
 	go t.produceTx()
 	go t.startTally()
 	go t.consumeTx()
-	go t.verifer.Start(t.sendMode == Parallel)
+	go t.verifer.Start()
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -257,7 +257,7 @@ func (t *Transactor) consumeTx() {
 func (t *Transactor) startTally() {
 	for item := range t.tallyCh {
 		if item.err == nil {
-			t.verifer.Add(item.txHash, item.verify)
+			t.verifer.Add(item.verify)
 		} else {
 			slog.Error("failed to send transaction", "err", item.err, "batchNo", item.batchNo, "txHash", item.txHash)
 		}

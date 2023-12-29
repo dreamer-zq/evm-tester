@@ -42,7 +42,7 @@ func (tgs *ETicketSampler) GenTxBuilder(conn *ethclient.Client, method string, p
 		return nil, errors.New("invalid method")
 	}
 
-	return func(opts *bind.TransactOpts) (*types.Transaction, tester.Verify, error) {
+	return func(opts *bind.TransactOpts) (*types.Transaction, tester.Verifier, error) {
 		p, err := m.FormatParams(params)
 		if err != nil {
 			return nil, nil, err
@@ -129,7 +129,7 @@ func (t *ETicketSamplerMintMethod) FormatParams(params []string) ([]interface{},
 // - params: a variadic parameter that can take in any number of arguments.
 //
 // It returns a *types.Transaction object and an error.
-func (t *ETicketSamplerMintMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verify, error) {
+func (t *ETicketSamplerMintMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verifier, error) {
 	if len(params) != 2 {
 		return nil, nil, errors.New("invalid contract params")
 	}
@@ -179,7 +179,7 @@ func (t ETicketSamplerTranferMethod) FormatParams(params []string) ([]interface{
 // - params: a variadic parameter that can take in any number of arguments.
 //
 // It returns a *types.Transaction object and an error.
-func (t ETicketSamplerTranferMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verify, error) {
+func (t ETicketSamplerTranferMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verifier, error) {
 	if len(params) != 3 {
 		return nil, nil, errors.New("invalid contract params")
 	}

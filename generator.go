@@ -21,7 +21,7 @@ var ErrExit = errors.New("exit")
 
 // Payload is a struct that contains the raw transaction and the chain ID.
 type Payload struct {
-	VerifyFn Verify             `csv:"-"`
+	VerifyFn Verifier             `csv:"-"`
 	Tx       *types.Transaction `csv:"-"`
 	RawTx    string             `csv:"raw_tx"`
 	ChainID  string             `csv:"chain_id"`
@@ -115,7 +115,7 @@ func SetPrivKey(privKey *ecdsa.PrivateKey) Option {
 }
 
 // CreateTx is a function type that can create or send transactions.
-type CreateTx func(opts *bind.TransactOpts) (*types.Transaction, Verify, error)
+type CreateTx func(opts *bind.TransactOpts) (*types.Transaction, Verifier, error)
 
 // TxGenerator generates transactions for the TicketGame contract.
 type TxGenerator struct {
@@ -215,7 +215,7 @@ func (tg *TxGenerator) GenTx(sender *ecdsa.PrivateKey, senderNonce *big.Int) (*P
 	}, nil
 }
 
-func (tg *TxGenerator) genTx(sender *ecdsa.PrivateKey, senderNonce *big.Int) (*types.Transaction, Verify, error) {
+func (tg *TxGenerator) genTx(sender *ecdsa.PrivateKey, senderNonce *big.Int) (*types.Transaction, Verifier, error) {
 	// Create an authorized transactor and call the store function
 	auth, err := bind.NewKeyedTransactorWithChainID(sender, tg.chainID)
 	if err != nil {

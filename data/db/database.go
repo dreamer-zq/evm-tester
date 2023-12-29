@@ -26,7 +26,6 @@ func Connect(dsn string) (*gorm.DB, error) {
 	var err error
 	once.Do(func() {
 		dsn = fmt.Sprintf("%s?charset=utf8mb4&parseTime=True&loc=Local", dsn)
-		fmt.Println(dsn)
 		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	})
 	return db, err

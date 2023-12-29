@@ -21,7 +21,7 @@ func TestAccounts_AddressPageQuery(t *testing.T) {
 			name: "test",
 			args: args{
 				limit:  300,
-				page: 62,
+				page: 1,
 			},
 			wantErr: false,
 		},
