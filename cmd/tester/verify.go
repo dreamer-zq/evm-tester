@@ -45,7 +45,7 @@ func VerifyCmd(manager *simple.Manager) *cobra.Command {
 			for _, v := range verifiers {
 				verifierManager.Add(v)
 			}
-			go verifierManager.Start()
+			go verifierManager.Start(true)
 			for {
 				if verifierManager.Finish(int64(len(verifiers))) {
 					break

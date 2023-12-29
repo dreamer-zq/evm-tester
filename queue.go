@@ -68,10 +68,34 @@ func (q *Queue[T]) Iterate(f func(T) bool) {
 	}
 }
 
+// IterateParallel iterates over the elements in the queue in parallel and applies a function to each element.
+//
+// The function `f` is applied to each element in the queue. If the function returns `true`, the element is removed from the queue.
+// The function does not guarantee the order in which the elements are processed.
+func (q *Queue[T]) IterateParallel(f func(T) bool) {
+	var next *list.Element
+	for e := q.q.Front(); e != nil; e = next {
+		next = e.Next()
+		q.p.Submit(func() {
+			if f(e.Value.(T)) {
+				q.remove(e)
+			}
+		})
+	}
+	q.p.Finish()
+}
+
 func (q *Queue[T]) Length() int {
 	return q.q.Len()
 }
 
 func (q *Queue[T]) IsEmpty() bool {
 	return q.Length() == 0
+}
+
+func (q *Queue[T]) remove(e *list.Element) {
+	q.l.Lock()
+	defer q.l.Unlock()
+
+	q.q.Remove(e)
 }

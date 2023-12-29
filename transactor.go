@@ -180,7 +180,7 @@ func (t *Transactor) Run() {
 	go t.produceTx()
 	go t.startTally()
 	go t.consumeTx()
-	go t.verifer.Start()
+	go t.verifer.Start(t.sendMode == Parallel)
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)

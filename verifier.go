@@ -121,7 +121,7 @@ func (vm *VerifierManager) Add(verifier Verifier) {
 // It uses a timer to periodically execute the validation logic.
 // If the VerifierManager is disabled, the function returns immediately.
 // The function has no parameters and does not return any values.
-func (vm *VerifierManager) Start() {
+func (vm *VerifierManager) Start(parallel bool) {
 	if !vm.enable {
 		return
 	}
