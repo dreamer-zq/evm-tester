@@ -28,7 +28,7 @@ func VerifyCmd(manager *simple.Manager) *cobra.Command {
 			if err := ccf.load(cmd); err != nil {
 				return err
 			}
-			conf.contract.SetContractAddr(ccf.addr)
+			conf.contract.BindAddress(ccf.addr)
 
 			methods, err := conf.contract.MethodMap(conf.client)
 			if err != nil {

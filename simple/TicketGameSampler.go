@@ -18,10 +18,10 @@ type TicketGameSampler struct {
 	contractAddr common.Address
 }
 
-// SetContractAddr sets the contract address for the TicketGameSampler.
+// BindAddress sets the contract address for the TicketGameSampler.
 //
 // contractAddr: the address of the contract to be set.
-func (tgs *TicketGameSampler) SetContractAddr(contractAddr common.Address) {
+func (tgs *TicketGameSampler) BindAddress(contractAddr common.Address) {
 	tgs.contractAddr = contractAddr
 }
 
@@ -91,14 +91,14 @@ type TicketGameSamplerRedeemMethod struct {
 // FormatParams formats the params for the TicketGameSamplerRedeemMethod Go function.
 //
 // It takes in a slice of strings called params and returns a slice of interfaces and an error.
-func (t TicketGameSamplerRedeemMethod) FormatParams(params []string) ([]interface{}, error) {
+func (t TicketGameSamplerRedeemMethod) FormatParams(params []string) ([]any, error) {
 	if len(params) != 1 {
 		return nil, errors.New("invalid contract params")
 	}
 
 	player := common.HexToAddress(params[0])
 	tokenURI := "http://redeem.io/"
-	return []interface{}{player, tokenURI}, nil
+	return []any{player, tokenURI}, nil
 }
 
 // GenTx generates a transaction for redeeming a ticket in the TicketGame contract.
@@ -108,7 +108,7 @@ func (t TicketGameSamplerRedeemMethod) FormatParams(params []string) ([]interfac
 //   - params: The parameters required for redeeming the ticket.
 //
 // It returns a transaction object (*types.Transaction) and an error object (error).
-func (t TicketGameSamplerRedeemMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verifier, error) {
+func (t TicketGameSamplerRedeemMethod) GenTx(opts *bind.TransactOpts, params ...any) (*types.Transaction, tester.Verifier, error) {
 	if len(params) != 2 {
 		return nil, nil, errors.New("invalid contract params")
 	}
@@ -138,7 +138,7 @@ type TicketGameSamplerBatchRedeemMethod struct {
 // FormatParams formats the params for the TicketGameSamplerBatchRedeemMethod Go function.
 //
 // It takes in a slice of strings called params and returns a slice of interfaces and an error.
-func (t TicketGameSamplerBatchRedeemMethod) FormatParams(params []string) ([]interface{}, error) {
+func (t TicketGameSamplerBatchRedeemMethod) FormatParams(params []string) ([]any, error) {
 	if len(params) != 1 {
 		return nil, errors.New("invalid contract params")
 	}
@@ -154,7 +154,7 @@ func (t TicketGameSamplerBatchRedeemMethod) FormatParams(params []string) ([]int
 		tokenURIs = append(tokenURIs, tokenURI)
 
 	}
-	return []interface{}{players, tokenURIs}, nil
+	return []any{players, tokenURIs}, nil
 }
 
 // GenTx generates a transaction to redeem tickets in batches for the TicketGameSamplerBatchRedeemMethod contract.
@@ -164,7 +164,7 @@ func (t TicketGameSamplerBatchRedeemMethod) FormatParams(params []string) ([]int
 // - params: A variadic parameter list that represents the player addresses and token URIs.
 //
 // It returns a transaction object and an error.
-func (t TicketGameSamplerBatchRedeemMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verifier, error) {
+func (t TicketGameSamplerBatchRedeemMethod) GenTx(opts *bind.TransactOpts, params ...any) (*types.Transaction, tester.Verifier, error) {
 	if len(params) != 2 {
 		return nil, nil, errors.New("invalid contract params")
 	}

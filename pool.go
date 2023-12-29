@@ -94,7 +94,7 @@ func newLogger() logger {
 	return logger{slog.Default()}
 }
 
-func (l logger) Printf(format string, args ...interface{}) {
+func (l logger) Printf(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	l.l.Debug(msg)
 }

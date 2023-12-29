@@ -20,7 +20,7 @@ type EthAddress common.Address
 //
 // It returns an error if the value cannot be assigned to the Address, otherwise
 // it returns nil.
-func (a *EthAddress) Scan(value interface{}) error {
+func (a *EthAddress) Scan(value any) error {
 	if value == nil {
 		return nil
 	}
@@ -83,7 +83,7 @@ func (t JSONTime) Value() (driver.Value, error) {
 }
 
 // Scan value of time.Time
-func (t *JSONTime) Scan(v interface{}) error {
+func (t *JSONTime) Scan(v any) error {
 	value, ok := v.(time.Time)
 	if ok {
 		*t = JSONTime{Time: value.In(time.UTC)}

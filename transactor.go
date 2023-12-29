@@ -381,7 +381,7 @@ func (t *Transactor) sendTxsBatch(ctx context.Context, batch *BatchResult) {
 		data, _ := payload.Tx.MarshalBinary()
 		elems = append(elems, rpc.BatchElem{
 			Method: "eth_sendRawTransaction",
-			Args:   []interface{}{hexutil.Encode(data)},
+			Args:   []any{hexutil.Encode(data)},
 			Result: new(string),
 		})
 	}

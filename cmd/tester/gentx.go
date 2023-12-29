@@ -87,7 +87,7 @@ func getGenerator(conf *GlobalConfig, cmd *cobra.Command) (*tester.TxGenerator, 
 		tester.SetConcurrent(concurrent),
 	}
 
-	conf.contract.SetContractAddr(txConf.callConfig.addr)
+	conf.contract.BindAddress(txConf.callConfig.addr)
 	txBuilrder, err := conf.contract.GenTxBuilder(conf.client, txConf.callConfig.method, txConf.callConfig.methodParams)
 	if err != nil {
 		return nil, err

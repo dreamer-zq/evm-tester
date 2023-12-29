@@ -20,10 +20,10 @@ type ETicketSampler struct {
 	contractAddr common.Address
 }
 
-// SetContractAddr sets the contract address for the ETicketSampler.
+// BindAddress sets the contract address for the ETicketSampler.
 //
 // contractAddr: the address of the contract to be set.
-func (tgs *ETicketSampler) SetContractAddr(contractAddr common.Address) {
+func (tgs *ETicketSampler) BindAddress(contractAddr common.Address) {
 	tgs.contractAddr = contractAddr
 }
 
@@ -104,7 +104,7 @@ type ETicketSamplerMintMethod struct {
 // FormatParams formats the params for the ETicketSamplerMintMethod Go function.
 //
 // It takes in a slice of strings called params and returns a slice of interfaces and an error.
-func (t *ETicketSamplerMintMethod) FormatParams(params []string) ([]interface{}, error) {
+func (t *ETicketSamplerMintMethod) FormatParams(params []string) ([]any, error) {
 	if len(params) != 2 {
 		return nil, errors.New("invalid contract params")
 	}
@@ -119,7 +119,7 @@ func (t *ETicketSamplerMintMethod) FormatParams(params []string) ([]interface{},
 	if t.tokenNext != nil {
 		tokenID = t.tokenNext
 	}
-	return []interface{}{to, tokenID}, nil
+	return []any{to, tokenID}, nil
 }
 
 // GenTx generates a transaction for the ETicketSamplerMintMethod Go function.
@@ -129,7 +129,7 @@ func (t *ETicketSamplerMintMethod) FormatParams(params []string) ([]interface{},
 // - params: a variadic parameter that can take in any number of arguments.
 //
 // It returns a *types.Transaction object and an error.
-func (t *ETicketSamplerMintMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verifier, error) {
+func (t *ETicketSamplerMintMethod) GenTx(opts *bind.TransactOpts, params ...any) (*types.Transaction, tester.Verifier, error) {
 	if len(params) != 2 {
 		return nil, nil, errors.New("invalid contract params")
 	}
@@ -159,7 +159,7 @@ type ETicketSamplerTranferMethod struct {
 // FormatParams formats the params for the ETicketSamplerTranferMethod Go function.
 //
 // It takes in a slice of strings called params and returns a slice of interfaces and an error.
-func (t ETicketSamplerTranferMethod) FormatParams(params []string) ([]interface{}, error) {
+func (t ETicketSamplerTranferMethod) FormatParams(params []string) ([]any, error) {
 	if len(params) != 3 {
 		return nil, errors.New("invalid contract params")
 	}
@@ -169,7 +169,7 @@ func (t ETicketSamplerTranferMethod) FormatParams(params []string) ([]interface{
 	if !ok {
 		return nil, errors.New("invalid contract params tokenID")
 	}
-	return []interface{}{from, to, tokenID}, nil
+	return []any{from, to, tokenID}, nil
 }
 
 // GenTx generates a transaction for the ETicketSamplerTranferMethod Go function.
@@ -179,7 +179,7 @@ func (t ETicketSamplerTranferMethod) FormatParams(params []string) ([]interface{
 // - params: a variadic parameter that can take in any number of arguments.
 //
 // It returns a *types.Transaction object and an error.
-func (t ETicketSamplerTranferMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verifier, error) {
+func (t ETicketSamplerTranferMethod) GenTx(opts *bind.TransactOpts, params ...any) (*types.Transaction, tester.Verifier, error) {
 	if len(params) != 3 {
 		return nil, nil, errors.New("invalid contract params")
 	}

@@ -79,8 +79,8 @@ func (poap *POAPSampler) MethodMap(conn *ethclient.Client) (map[string]Method, e
 	}, nil
 }
 
-// SetContractAddr implements Contract.
-func (poap *POAPSampler) SetContractAddr(contractAddr common.Address) {
+// BindAddress implements Contract.
+func (poap *POAPSampler) BindAddress(contractAddr common.Address) {
 	poap.contractAddr = contractAddr
 }
 
@@ -93,7 +93,7 @@ type POAPSamplerBatchMintMethod struct {
 }
 
 // FormatParams formats the params for the POAPSamplerBatchMintMethod Go function.
-func (t *POAPSamplerBatchMintMethod) FormatParams(params []string) ([]interface{}, error) {
+func (t *POAPSamplerBatchMintMethod) FormatParams(params []string) ([]any, error) {
 	if len(params) != 1 {
 		return nil, errors.New("invalid contract params")
 	}
@@ -108,11 +108,11 @@ func (t *POAPSamplerBatchMintMethod) FormatParams(params []string) ([]interface{
 		return nil, err
 	}
 	slog.Info("build transaction", "tokenID", tokenID, "offset", offset, "page", t.page, "pageSize", pageSize, "len", len(addrs))
-	return []interface{}{addrs.Address(), tokenID, offset}, nil
+	return []any{addrs.Address(), tokenID, offset}, nil
 }
 
 // GenTx generates a transaction for the POAPSamplerBatchMintMethod Go function.
-func (t *POAPSamplerBatchMintMethod) GenTx(opts *bind.TransactOpts, params ...interface{}) (*types.Transaction, tester.Verifier, error) {
+func (t *POAPSamplerBatchMintMethod) GenTx(opts *bind.TransactOpts, params ...any) (*types.Transaction, tester.Verifier, error) {
 	if len(params) != 3 {
 		return nil, nil, errors.New("invalid contract params")
 	}

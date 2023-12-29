@@ -10,10 +10,10 @@ import (
 //
 // The function takes two parameters:
 // - path: a string representing the directory path where the CSV file will be saved.
-// - data: an interface{} representing the data that will be saved to the CSV file.
+// - data: an any representing the data that will be saved to the CSV file.
 //
 // The function returns an error if any error occurs during the file operations.
-func SaveToCSV(path string, data interface{}) error {
+func SaveToCSV(path string, data any) error {
 	csvFile, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, os.ModePerm)
 	if err != nil {
 		return err
