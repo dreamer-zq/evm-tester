@@ -43,6 +43,23 @@ type GenericVerifier struct {
 	verify Verify
 }
 
+// TxVerify verifies the transaction receipt for a given hash.
+//
+// It takes an `eth` parameter of type `*ethclient.Client` which represents the Ethereum client.
+// The `hash` parameter of type `common.Hash` represents the hash of the transaction.
+//
+// It returns a `GenericVerifier` which is used to verify the transaction receipt.
+func TxVerify(eth *ethclient.Client, hash common.Hash) GenericVerifier {
+	verify := func() (bool, error) {
+		receipt, err := eth.TransactionReceipt(context.Background(), hash)
+		if err != nil || receipt == nil {
+			return false, errors.New("get transaction receipt error")
+		}
+		return true, nil
+	}
+	return NewGenericVerifier(hash.Hex(), verify)
+}
+
 // NewGenericVerifier creates a new instance of GenericVerifier.
 //
 // Parameters:
@@ -101,11 +118,12 @@ func NewVerifierManager(enable bool, eth *ethclient.Client) *VerifierManager {
 // the function adds a new element to the queue with the provided hash and verify function.
 // If the verify function is nil, it uses the defaultVerifyFn of the Verifier for verification.
 // The element is added only if the Verifier is enabled.
-func (vm *VerifierManager) Add(verifier Verifier) {
+func (vm *VerifierManager) Add(verifier Verifier, txHash *common.Hash) {
 	if vm.enable {
-		if verifier == nil {
-			return
+		if verifier == nil && txHash != nil {
+			verifier = TxVerify(vm.eth, *txHash)
 		}
+
 		vm.queue.Add(&element{
 			verifier: verifier,
 			id:       verifier.ID(),
@@ -113,7 +131,6 @@ func (vm *VerifierManager) Add(verifier Verifier) {
 		})
 	}
 }
-
 
 // Start starts the VerifierManager.
 //
@@ -154,6 +171,7 @@ func (vm *VerifierManager) Start(parallel bool) {
 		vm.records = append(vm.records, record)
 		return true
 	}
+
 	for range vm.timer.C {
 		if vm.running {
 			continue
@@ -181,15 +199,4 @@ func (vm *VerifierManager) Finish(total int64) bool {
 		return true
 	}
 	return false
-}
-
-func (vm *VerifierManager) defaultVerifyFn(hash common.Hash) Verifier {
-	verify := func() (bool, error) {
-		receipt, err := vm.eth.TransactionReceipt(context.Background(), hash)
-		if err != nil || receipt == nil {
-			return false, errors.New("get transaction receipt error")
-		}
-		return true, nil
-	}
-	return NewGenericVerifier(hash.Hex(), verify)
 }

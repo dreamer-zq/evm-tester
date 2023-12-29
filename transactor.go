@@ -257,7 +257,7 @@ func (t *Transactor) consumeTx() {
 func (t *Transactor) startTally() {
 	for item := range t.tallyCh {
 		if item.err == nil {
-			t.verifer.Add(item.verify)
+			t.verifer.Add(item.verify, &item.txHash)
 		} else {
 			slog.Error("failed to send transaction", "err", item.err, "batchNo", item.batchNo, "txHash", item.txHash)
 		}

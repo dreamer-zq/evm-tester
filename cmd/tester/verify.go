@@ -43,7 +43,7 @@ func VerifyCmd(manager *simple.Manager) *cobra.Command {
 			verifiers, err := methodVerifiable.GenVerifier(ccf.methodParams)
 			verifierManager := tester.NewVerifierManager(true, conf.client)
 			for _, v := range verifiers {
-				verifierManager.Add(v)
+				verifierManager.Add(v, nil)
 			}
 			go verifierManager.Start(true)
 			for {
