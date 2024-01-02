@@ -184,7 +184,7 @@ func (t *POAPSamplerBatchMintMethod) GenVerifier(params []string) ([]tester.Veri
 // No parameters.
 // Returns a string.
 func (t *POAPSamplerBatchMintMethod) Display() string {
-	return t.abi.Methods["batchMint"].String()
+	return "function batchMint(string dns, uint256 tokenId) returns()"
 }
 
 func (t *POAPSamplerBatchMintMethod) genVerifier(id string, addrs []common.Address, ids []*big.Int) tester.Verifier {
