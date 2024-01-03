@@ -20,7 +20,7 @@ var (
 	flagGasLimit       = "gas-limit"
 	flagPrivateKey     = "private-key"
 	flagNonce          = "nonce"
-	flagNoSign         = "no_sign"
+	flagNoSign         = "no-sign"
 	flagContractParams = "contract-method-params"
 	flagContractMethod = "contract-method"
 )
