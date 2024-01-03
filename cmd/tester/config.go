@@ -48,7 +48,6 @@ func loadGlobalFlags(cmd *cobra.Command, manager *simple.Manager) (*GlobalConfig
 		return nil, errors.Wrap(err, "failed to connect to the Ethereum client")
 	}
 
-
 	return &GlobalConfig{
 		chainID:  big.NewInt(chainIDInt),
 		url:      url,
@@ -64,6 +63,7 @@ type TransactionConfig struct {
 	gasTipCap  *big.Int
 	nonce      int64
 	privKey    *ecdsa.PrivateKey
+	noSign     bool
 	batchSize  uint64
 	callConfig *ContractCallConfig
 }
@@ -105,6 +105,11 @@ func (tc *TransactionConfig) load(cmd *cobra.Command, client *ethclient.Client) 
 	}
 
 	tc.nonce, err = cmd.Flags().GetInt64(flagNonce)
+	if err != nil {
+		return err
+	}
+
+	tc.noSign, err = cmd.Flags().GetBool(flagNoSign)
 	if err != nil {
 		return err
 	}

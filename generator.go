@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -21,7 +22,7 @@ var ErrExit = errors.New("exit")
 
 // Payload is a struct that contains the raw transaction and the chain ID.
 type Payload struct {
-	VerifyFn Verifier             `csv:"-"`
+	VerifyFn Verifier           `csv:"-"`
 	Tx       *types.Transaction `csv:"-"`
 	RawTx    string             `csv:"raw_tx"`
 	ChainID  string             `csv:"chain_id"`
@@ -114,6 +115,20 @@ func SetPrivKey(privKey *ecdsa.PrivateKey) Option {
 	}
 }
 
+// SetNoSign sets the noSign field of a TxGenerator.
+//
+// Parameters:
+// - noSign: a boolean value indicating whether to set the noSign field to true or false.
+//
+// Returns:
+// - a function that takes a TxGenerator pointer as argument and returns the modified TxGenerator pointer.
+func SetNoSign(noSign bool) Option {
+	return func(tg *TxGenerator) *TxGenerator {
+		tg.noSign = noSign
+		return tg
+	}
+}
+
 // CreateTx is a function type that can create or send transactions.
 type CreateTx func(opts *bind.TransactOpts) (*types.Transaction, Verifier, error)
 
@@ -129,6 +144,7 @@ type TxGenerator struct {
 	privKey    *ecdsa.PrivateKey
 	nonce      int64
 	concurrent bool
+	noSign     bool
 }
 
 // NewTxGenerator initializes a new instance of the TxGenerator struct.
@@ -220,6 +236,11 @@ func (tg *TxGenerator) genTx(sender *ecdsa.PrivateKey, senderNonce *big.Int) (*t
 	auth, err := bind.NewKeyedTransactorWithChainID(sender, tg.chainID)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to create authorized transactor")
+	}
+	if tg.noSign {
+		auth.Signer = func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
+			return tx, nil
+		}
 	}
 	auth.NoSend = true
 	auth.Nonce = senderNonce

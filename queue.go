@@ -18,7 +18,6 @@ type Queue[T any] struct {
 // This function does not take any parameters.
 // It returns a pointer to a Queue[T] object.
 func NewQueue[T any]() *Queue[T] {
-	list.New()
 	return &Queue[T]{
 		q: list.New(),
 		p: NewPool(500, "validator"),

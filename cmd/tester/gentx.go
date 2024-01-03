@@ -20,6 +20,7 @@ var (
 	flagGasLimit       = "gas-limit"
 	flagPrivateKey     = "private-key"
 	flagNonce          = "nonce"
+	flagNoSign         = "no_sign"
 	flagContractParams = "contract-method-params"
 	flagContractMethod = "contract-method"
 )
@@ -85,6 +86,7 @@ func getGenerator(conf *GlobalConfig, cmd *cobra.Command) (*tester.TxGenerator, 
 		tester.SetPrivKey(txConf.privKey),
 		tester.SetNonce(txConf.nonce),
 		tester.SetConcurrent(concurrent),
+		tester.SetNoSign(txConf.noSign),
 	}
 
 	conf.contract.BindAddress(txConf.callConfig.addr)
@@ -113,6 +115,7 @@ func addTxFlags(cmd *cobra.Command) {
 	cmd.Flags().Int64(flagGasFeeCap, 0, "gas fee cap to use for the 1559 transaction execution (nil = gas price oracle,fetch from chain)")
 	cmd.Flags().Int64(flagGasTipCap, 0, "gas priority fee cap to use for the 1559 transaction execution (nil = gas price oracle,fetch from chain)")
 	cmd.Flags().Uint64(flagGasLimit, 0, "gas limit to set for the transaction execution (0 = estimate,fetch from chain)")
+	cmd.Flags().Bool(flagNoSign, false, "whether to sign the transaction")
 }
 
 func addSendTxFlags(cmd *cobra.Command) {
